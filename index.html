@@ -283,6 +283,24 @@ const db = firebase.database();
 
 const STORAGE_KEY = "hq_state_v1";
 const MY_ID_KEY = "hq_my_agent_id";
+const ROOM_KEY = "hq_room_id";
+let roomId = null;
+
+function generateRoomCode(){
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+function loadRoomId(){
+  try{ roomId = localStorage.getItem(ROOM_KEY) || null; }catch(e){ roomId = null; }
+}
+function saveRoomId(id){
+  roomId = id;
+  try{ localStorage.setItem(ROOM_KEY, id); }catch(e){}
+}
+function myIdKey(){ return MY_ID_KEY + "_" + roomId; }
+function roomRef(path){ return db.ref('rooms/' + roomId + '/' + path); }
 
 let state = null;
 let myAgentId = null;
@@ -378,7 +396,7 @@ function defaultState(){
   return {
     agents: [],
     channels: [
-      { id:"hq", name:"штаб-квартира", members:"all" }
+      { id:"hq", name:"штаб-квартира", type:"family", members:"all", status:"active" }
     ],
     missions: [],
     rewards: [],
@@ -386,12 +404,69 @@ function defaultState(){
   };
 }
 
+function visibleChannelsFor(agentId){
+  return state.channels.filter(c=>{
+    if(c.type==='family') return true;
+    if(isDirector()) return true;
+    return Array.isArray(c.members) && c.members.includes(agentId);
+  });
+}
+
+function channelDisplayName(c, forAgentId){
+  if(c.type==='personal'){
+    const otherId = c.members.find(m=>m!==forAgentId);
+    const other = agentById(otherId);
+    return other ? other.name : '?';
+  }
+  return c.name;
+}
+
+function findPersonalChannel(idA, idB){
+  return state.channels.find(c=>c.type==='personal' && c.members.includes(idA) && c.members.includes(idB));
+}
+
+async function createPersonalRequest(toId){
+  const existing = findPersonalChannel(myAgentId, toId);
+  if(existing) return existing.id;
+  const id = uid();
+  state.channels.push({ id, type:'personal', name:null, members:[myAgentId, toId], status:'pending', requestedBy: myAgentId });
+  state.messages[id] = [];
+  await saveState();
+  return id;
+}
+
+async function createGroupChannel(name, memberIds){
+  const id = uid();
+  const members = Array.from(new Set([myAgentId, ...memberIds]));
+  state.channels.push({ id, type:'group', name, members, status:'active', createdBy: myAgentId });
+  state.messages[id] = [];
+  await saveState();
+  return id;
+}
+
+async function respondToRequest(channelId, approve){
+  const idx = state.channels.findIndex(c=>c.id===channelId);
+  if(idx===-1) return;
+  if(approve){
+    state.channels[idx].status = 'active';
+  } else {
+    state.channels.splice(idx,1);
+    delete state.messages[channelId];
+  }
+  await saveState();
+}
+
 function normalizeState(val){
   const d = defaultState();
   const v = val || {};
+  const channels = (Array.isArray(v.channels) ? v.channels : d.channels).map(c=>({
+    type: c.type || (c.members==='all' ? 'family' : 'personal'),
+    status: c.status || 'active',
+    ...c
+  }));
   return {
     agents: Array.isArray(v.agents) ? v.agents : d.agents,
-    channels: Array.isArray(v.channels) ? v.channels : d.channels,
+    channels,
     missions: Array.isArray(v.missions) ? v.missions : d.missions,
     rewards: Array.isArray(v.rewards) ? v.rewards : d.rewards,
     messages: (v.messages && typeof v.messages==='object') ? Object.assign({hq:[]}, v.messages) : d.messages
@@ -400,7 +475,7 @@ function normalizeState(val){
 
 async function loadState(){
   return new Promise((resolve)=>{
-    db.ref('appState').once('value', snap=>{
+    roomRef('appState').once('value', snap=>{
       state = normalizeState(snap.val());
       resolve();
     }, (err)=>{ showError('loadState: '+err.message); state = defaultState(); resolve(); });
@@ -408,7 +483,7 @@ async function loadState(){
 }
 
 function watchState(){
-  db.ref('appState').on('value', snap=>{
+  roomRef('appState').on('value', snap=>{
     const val = snap.val();
     if(val){
       state = normalizeState(val);
@@ -418,14 +493,14 @@ function watchState(){
 }
 
 async function saveState(){
-  try{ await db.ref('appState').set(state); }catch(e){ showError('saveState: '+e.message); }
+  try{ await roomRef('appState').set(state); }catch(e){ showError('saveState: '+e.message); }
 }
 function loadMyId(){
-  try{ myAgentId = localStorage.getItem(MY_ID_KEY) || null; }catch(e){ myAgentId = null; }
+  try{ myAgentId = localStorage.getItem(myIdKey()) || null; }catch(e){ myAgentId = null; }
 }
 function saveMyId(id){
   myAgentId = id;
-  try{ localStorage.setItem(MY_ID_KEY, id); }catch(e){}
+  try{ localStorage.setItem(myIdKey(), id); }catch(e){}
 }
 
 let onlineIds = new Set();
@@ -435,14 +510,14 @@ const HEARTBEAT_INTERVAL = 25000;
 async function heartbeat(){
   if(!myAgentId) return;
   try{
-    const ref = db.ref('presence/'+myAgentId);
+    const ref = roomRef('presence/'+myAgentId);
     await ref.set(Date.now());
     ref.onDisconnect().remove();
   }catch(e){ showError('heartbeat: '+e.message); }
 }
 
 function watchPresence(){
-  db.ref('presence').on('value', snap=>{
+  roomRef('presence').on('value', snap=>{
     const val = snap.val() || {};
     const now = Date.now();
     onlineIds = new Set(Object.keys(val).filter(id => now - val[id] < PRESENCE_TTL));
@@ -465,8 +540,8 @@ async function deleteAgentById(id){
   await saveState();
   if(myAgentId===id){
     myAgentId=null;
-    try{ localStorage.removeItem(MY_ID_KEY); }catch(err){}
-    try{ await db.ref('presence/'+id).remove(); }catch(err){}
+    try{ localStorage.removeItem(myIdKey()); }catch(err){}
+    try{ await roomRef('presence/'+id).remove(); }catch(err){}
   }
 }
 
@@ -498,6 +573,11 @@ function initials(name){
 function render(){
   const root = document.getElementById("root");
   if(view === "loading"){ root.innerHTML = ""; return; }
+  if(view === "room"){
+    root.innerHTML = renderRoomScreen() + (modal ? renderModal() : '');
+    attachRoomEvents();
+    return;
+  }
   if(!myAgentId || !me()){
     root.innerHTML = renderIdentity() + (modal ? renderModal() : '');
     attachIdentityEvents();
@@ -535,6 +615,65 @@ function renderNav(){
       </button>` : ''}
     <button data-nav="rewards" class="${view==='rewards'?'active':''}"><span class="nav-icon">◆</span>награды</button>
   </div>`;
+}
+
+function renderRoomScreen(){
+  return `
+  <div class="screen" style="padding-bottom:40px;">
+    <div class="brand">
+      <div class="brand-mark spin-glow"><i>SHQ</i></div>
+      <div>
+        <div class="brand-title">секретный штаб</div>
+        <div class="brand-sub">закрытая сеть агентства</div>
+      </div>
+    </div>
+    <h1>ваш штаб</h1>
+    <p class="lead">каждый штаб — это отдельная закрытая комната. создайте новый штаб для своей семьи, или введите код, если штаб уже существует.</p>
+
+    <h2>новый штаб</h2>
+    <button class="btn-primary btn-block" id="createRoomBtn">создать новый штаб</button>
+
+    <h2>уже есть код</h2>
+    <label class="field-label">код штаба</label>
+    <input id="joinRoomCode" placeholder="например: X7K2QP" maxlength="8" style="text-transform:uppercase;"/>
+    <button class="btn-block" style="margin-top:12px" id="joinRoomBtn">войти по коду</button>
+  </div>`;
+}
+
+function attachRoomEvents(){
+  const createBtn = document.getElementById('createRoomBtn');
+  if(createBtn) createBtn.onclick = ()=>{
+    const code = generateRoomCode();
+    modal = { type:'roomCreated', code };
+    render();
+  };
+  const joinBtn = document.getElementById('joinRoomBtn');
+  if(joinBtn) joinBtn.onclick = async ()=>{
+    const input = document.getElementById('joinRoomCode');
+    const code = input.value.trim().toUpperCase();
+    if(!code) return;
+    saveRoomId(code);
+    await startRoomSession();
+  };
+  const overlay = document.getElementById('modalOverlay');
+  if(overlay){
+    const goBtn = document.getElementById('modalRoomContinue');
+    if(goBtn) goBtn.onclick = async ()=>{
+      saveRoomId(modal.code);
+      modal = null;
+      await startRoomSession();
+    };
+  }
+}
+
+async function startRoomSession(){
+  loadMyId();
+  await loadState();
+  watchState();
+  watchPresence();
+  view = 'home';
+  render();
+  await heartbeat();
 }
 
 function renderIdentity(){
@@ -632,12 +771,49 @@ function renderHome(){
       activeMissions.slice(0,3).map(missionCardHtml).join('')}
 
     <h2>каналы связи</h2>
-    <div class="channel-open-panel" data-open-channel="hq">
-      <div class="channel-open-icon spin-glow">◈</div>
-      <div class="channel-open-title">штаб-квартира</div>
-      <div class="channel-open-sub">вся семья · нажмите, чтобы открыть переписку</div>
-    </div>
+    ${renderChannelList(m)}
+    <button class="btn-block glow-btn" style="margin-top:10px" data-open-newchat="1">+ новый чат</button>
   `;
+}
+
+function renderChannelList(m){
+  const channels = visibleChannelsFor(m.id);
+  if(channels.length===0){
+    return `<div class="empty-state"><div class="stamp">пусто</div><div>каналов пока нет</div></div>`;
+  }
+  return channels.map(c=>{
+    const name = channelDisplayName(c, m.id);
+    if(c.status==='pending'){
+      if(c.requestedBy===m.id){
+        return `
+        <div class="channel-open-panel" style="opacity:0.6; cursor:default;">
+          <div class="channel-open-icon">◈</div>
+          <div class="channel-open-title">${escapeHtml(name)}</div>
+          <div class="channel-open-sub">запрос отправлен · ждём одобрения</div>
+        </div>`;
+      }
+      return `
+        <div class="card">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+            <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">${initials(name)}</div>
+            <div>
+              <div class="mission-title" style="padding-right:0">${escapeHtml(name)}</div>
+              <div class="mission-meta">хочет открыть с вами канал связи</div>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn-danger-outline" data-reject-request="${c.id}">отклонить</button>
+            <button class="btn-success" data-approve-request="${c.id}">одобрить</button>
+          </div>
+        </div>`;
+    }
+    return `
+    <div class="channel-open-panel" data-open-channel="${c.id}">
+      <div class="channel-open-icon spin-glow">${c.type==='family'?'◈':(c.type==='group'?'✦':'◆')}</div>
+      <div class="channel-open-title">${escapeHtml(name)}</div>
+      <div class="channel-open-sub">${c.type==='family'?'вся семья':(c.type==='group'?'группа':'личный канал')} · нажмите, чтобы открыть переписку</div>
+    </div>`;
+  }).join('');
 }
 
 function missionCardHtml(msn){
@@ -736,13 +912,15 @@ function renderChat(){
   const ch = state.channels.find(c=>c.id===activeChannelId);
   const msgs = state.messages[activeChannelId] || [];
   const m = me();
+  const chName = channelDisplayName(ch, m.id);
+  const sub = ch.type==='family' ? 'вся семья · на связи' : (ch.type==='group' ? `группа · ${ch.members.length} участников` : 'личный канал');
   return `
     <div class="chat-header">
       <button class="back-btn" data-nav="home">←</button>
-      <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">${initials(ch.name)}</div>
+      <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">${initials(chName)}</div>
       <div style="flex:1">
-        <div class="channel-name">${escapeHtml(ch.name)}</div>
-        <div class="channel-sub">${ch.members==='all'?'вся семья · на связи':'канал'}</div>
+        <div class="channel-name">${escapeHtml(chName)}</div>
+        <div class="channel-sub">${sub}</div>
       </div>
     </div>
     <div id="chatMessages">
@@ -823,12 +1001,15 @@ function renderModal(){
           </div>
           <div class="id-card-label">роль</div>
           <div style="font-size:14px; margin-top:2px;">${m.role==='director'?'директор (родитель)':'агент (ребёнок)'}</div>
+          <div class="id-card-label" style="margin-top:14px;">код штаба</div>
+          <div style="font-family:var(--mono); font-size:16px; letter-spacing:2px; color:var(--accent-ink); margin-top:2px;">${roomId}</div>
         </div>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">закрыть</button>
           <button class="btn-danger-outline" id="modalSwitchAgent">сменить агента</button>
         </div>
         <button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteSelf">удалить это удостоверение</button>
+        <button class="btn-block" style="margin-top:8px" id="modalSwitchRoom">сменить штаб</button>
       </div>
     </div>`;
   }
@@ -843,6 +1024,55 @@ function renderModal(){
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">отмена</button>
           <button class="btn-danger-outline" id="modalConfirmDelete">удалить</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'roomCreated'){
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">штаб создан</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
+          сохраните этот код — он понадобится всем членам семьи, чтобы присоединиться к этому же штабу
+        </p>
+        <div class="id-card" style="text-align:center; margin-top:0;">
+          <div class="id-card-label">код штаба</div>
+          <div style="font-family:var(--mono); font-size:32px; font-weight:700; letter-spacing:4px; color:var(--accent-ink); margin-top:8px;">${modal.code}</div>
+        </div>
+        <button class="btn-primary btn-block" style="margin-top:18px" id="modalRoomContinue">продолжить →</button>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'newChat'){
+    const others = state.agents.filter(a=>a.id!==myAgentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">новый канал связи</div>
+
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">написать агенту напрямую (нужно одобрение)</p>
+        ${others.length===0 ? `<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">других агентов пока нет</div>` :
+          others.map(a=>`
+            <div class="choice-card" style="padding:10px 14px;">
+              <div class="seal" style="${sealStyle(a.color)}; width:34px; height:34px;">${initials(a.name)}</div>
+              <div style="flex:1"><div class="choice-name">${escapeHtml(a.name)}</div></div>
+              <button class="btn-ghost-sm btn-enter" data-request-chat="${a.id}">написать</button>
+            </div>
+          `).join('')}
+
+        <p style="font-size:13px; color:var(--text-secondary); margin:18px 0 10px;">или создать группу (без одобрения)</p>
+        <label class="field-label">название группы</label>
+        <input id="groupName" placeholder="например: операция Х"/>
+        <label class="field-label">участники</label>
+        ${others.length===0 ? `<div style="font-size:13px;color:var(--text-muted);">нет других агентов, чтобы добавить</div>` :
+          others.map(a=>`
+            <label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:14px;">
+              <input type="checkbox" class="group-member-cb" value="${a.id}" style="width:auto;"/> ${escapeHtml(a.name)}
+            </label>
+          `).join('')}
+        <button class="btn-primary btn-block" style="margin-top:16px" id="createGroupBtn">создать группу</button>
+
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть</button>
         </div>
       </div>
     </div>`;
@@ -970,11 +1200,19 @@ function attachEvents(){
       }
     };
   });
+  document.querySelectorAll('[data-approve-request]').forEach(el=>{
+    el.onclick = async ()=>{ await respondToRequest(el.getAttribute('data-approve-request'), true); render(); };
+  });
+  document.querySelectorAll('[data-reject-request]').forEach(el=>{
+    el.onclick = async ()=>{ await respondToRequest(el.getAttribute('data-reject-request'), false); render(); };
+  });
   document.querySelectorAll('[data-open-profile]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'profile'}; render(); };
   });
   const themeBtn = document.querySelector('[data-open-theme]');
   if(themeBtn) themeBtn.onclick = ()=>{ modal = {type:'theme'}; render(); };
+  const newChatBtn = document.querySelector('[data-open-newchat]');
+  if(newChatBtn) newChatBtn.onclick = ()=>{ modal = {type:'newChat'}; render(); };
   const newMissionBtn = document.getElementById('newMissionBtn');
   if(newMissionBtn) newMissionBtn.onclick = ()=>{ modal={type:'newMission'}; render(); };
   const newRewardBtn = document.getElementById('newRewardBtn');
@@ -1022,6 +1260,23 @@ function attachEvents(){
       hueSlider.onchange = async ()=>{ await saveTheme(); };
     }
 
+    document.querySelectorAll('[data-request-chat]').forEach(el=>{
+      el.onclick = async ()=>{
+        const toId = el.getAttribute('data-request-chat');
+        await createPersonalRequest(toId);
+        modal = null; render();
+      };
+    });
+    const createGroupBtn = document.getElementById('createGroupBtn');
+    if(createGroupBtn) createGroupBtn.onclick = async ()=>{
+      const name = document.getElementById('groupName').value.trim();
+      if(!name) return;
+      const memberIds = Array.from(document.querySelectorAll('.group-member-cb:checked')).map(cb=>cb.value);
+      if(memberIds.length===0) return;
+      await createGroupChannel(name, memberIds);
+      modal = null; render();
+    };
+
     const confirmDeleteBtn = document.getElementById('modalConfirmDelete');
     if(confirmDeleteBtn) confirmDeleteBtn.onclick = async ()=>{
       await deleteAgentById(modal.agentId);
@@ -1032,14 +1287,26 @@ function attachEvents(){
     if(switchAgent) switchAgent.onclick = async ()=>{
       const prevId = myAgentId;
       myAgentId = null;
-      try{ localStorage.removeItem(MY_ID_KEY); }catch(e){}
-      try{ if(prevId) await db.ref('presence/'+prevId).remove(); }catch(e){}
+      try{ localStorage.removeItem(myIdKey()); }catch(e){}
+      try{ if(prevId) await roomRef('presence/'+prevId).remove(); }catch(e){}
       modal = null; render();
     };
 
     const deleteSelf = document.getElementById('modalDeleteSelf');
     if(deleteSelf) deleteSelf.onclick = ()=>{
       modal = {type:'confirmDelete', agentId: myAgentId, from:'profile'};
+      render();
+    };
+
+    const switchRoom = document.getElementById('modalSwitchRoom');
+    if(switchRoom) switchRoom.onclick = async ()=>{
+      try{ db.ref('rooms/'+roomId+'/appState').off(); db.ref('rooms/'+roomId+'/presence').off(); }catch(e){}
+      if(myAgentId){ try{ await roomRef('presence/'+myAgentId).remove(); }catch(e){} }
+      myAgentId = null;
+      try{ localStorage.removeItem(ROOM_KEY); }catch(e){}
+      roomId = null;
+      modal = null;
+      view = 'room';
       render();
     };
 
@@ -1087,16 +1354,16 @@ function scrollChatBottom(){
 /* ---------- INIT ---------- */
 (async function init(){
   await loadTheme();
-  loadMyId();
-  await loadState();
-  watchState();
-  watchPresence();
-  view = 'home';
-  render();
-  await heartbeat();
-  setInterval(heartbeat, HEARTBEAT_INTERVAL);
+  loadRoomId();
+  if(!roomId){
+    view = 'room';
+    render();
+  } else {
+    await startRoomSession();
+  }
+  setInterval(()=>{ if(roomId) heartbeat(); }, HEARTBEAT_INTERVAL);
   window.addEventListener('beforeunload', ()=>{
-    if(myAgentId){ try{ db.ref('presence/'+myAgentId).remove(); }catch(e){} }
+    if(myAgentId && roomId){ try{ roomRef('presence/'+myAgentId).remove(); }catch(e){} }
   });
 })();
 </script>
