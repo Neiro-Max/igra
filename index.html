@@ -248,6 +248,7 @@
 </head>
 <body>
 <div id="app">
+  <div id="errorBanner" style="display:none; position:fixed; top:0; left:0; right:0; background:#FF5A4E; color:#fff; padding:10px 14px; font-family:monospace; font-size:12px; z-index:9999; white-space:pre-wrap; word-break:break-word;"></div>
   <div id="root"></div>
 </div>
 
@@ -270,6 +271,13 @@ const firebaseConfig = {
   messagingSenderId: "750123298549",
   appId: "1:750123298549:web:ac3c9c643b231dc24d1fbc"
 };
+function showError(msg){
+  const el = document.getElementById('errorBanner');
+  if(el){ el.textContent = 'Ошибка: ' + msg; el.style.display = 'block'; }
+}
+window.addEventListener('error', (e)=>{ showError(e.message); });
+window.addEventListener('unhandledrejection', (e)=>{ showError((e.reason && e.reason.message) ? e.reason.message : String(e.reason)); });
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -383,7 +391,7 @@ async function loadState(){
     db.ref('appState').once('value', snap=>{
       state = snap.val() || defaultState();
       resolve();
-    }, ()=>{ state = defaultState(); resolve(); });
+    }, (err)=>{ showError('loadState: '+err.message); state = defaultState(); resolve(); });
   });
 }
 
@@ -394,11 +402,11 @@ function watchState(){
       state = val;
       if(myAgentId && view!=='loading'){ render(); }
     }
-  });
+  }, err=>{ showError('watchState: '+err.message); });
 }
 
 async function saveState(){
-  try{ await db.ref('appState').set(state); }catch(e){}
+  try{ await db.ref('appState').set(state); }catch(e){ showError('saveState: '+e.message); }
 }
 function loadMyId(){
   try{ myAgentId = localStorage.getItem(MY_ID_KEY) || null; }catch(e){ myAgentId = null; }
@@ -418,7 +426,7 @@ async function heartbeat(){
     const ref = db.ref('presence/'+myAgentId);
     await ref.set(Date.now());
     ref.onDisconnect().remove();
-  }catch(e){}
+  }catch(e){ showError('heartbeat: '+e.message); }
 }
 
 function watchPresence(){
@@ -427,7 +435,7 @@ function watchPresence(){
     const now = Date.now();
     onlineIds = new Set(Object.keys(val).filter(id => now - val[id] < PRESENCE_TTL));
     if(myAgentId && view==='home' && !modal) render();
-  });
+  }, err=>{ showError('watchPresence: '+err.message); });
 }
 
 function me(){ return state.agents.find(a => a.id === myAgentId) || null; }
