@@ -306,13 +306,29 @@ function myIdKey(){ return MY_ID_KEY + "_" + roomId; }
 function roomRef(path){ return db.ref('rooms/' + roomId + '/' + path); }
 
 async function copyCodeToClipboard(code, feedbackEl){
+  let ok = false;
   try{
     await navigator.clipboard.writeText(code);
-    if(feedbackEl) feedbackEl.textContent = 'скопировано!';
-  }catch(e){
-    if(feedbackEl) feedbackEl.textContent = 'не удалось скопировать — выделите код вручную';
+    ok = true;
+  }catch(e){ ok = false; }
+  if(!ok){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    }catch(e){ ok = false; }
   }
-  if(feedbackEl) setTimeout(()=>{ feedbackEl.textContent=''; }, 2500);
+  if(feedbackEl){
+    feedbackEl.textContent = ok ? 'скопировано!' : 'не удалось скопировать — выделите код вручную';
+    setTimeout(()=>{ feedbackEl.textContent=''; }, 2500);
+  }
 }
 function shareCode(code){
   const text = `Присоединяйся к нашему секретному штабу! Код: ${code}`;
@@ -1030,7 +1046,7 @@ function renderModal(){
           <div class="id-card-label">роль</div>
           <div style="font-size:14px; margin-top:2px;">${m.role==='director'?'директор (родитель)':'агент (ребёнок)'}</div>
           <div class="id-card-label" style="margin-top:14px;">код штаба</div>
-          <div style="font-family:var(--mono); font-size:16px; letter-spacing:2px; color:var(--accent-ink); margin-top:2px;">${roomId}</div>
+          <div style="font-family:var(--mono); font-size:16px; letter-spacing:2px; color:var(--accent-ink); margin-top:2px; user-select:text; -webkit-user-select:text;">${roomId}</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn-ghost-sm" id="copyRoomCodeBtn" data-code="${roomId}">копировать</button>
             <button class="btn-ghost-sm" id="shareRoomCodeBtn" data-code="${roomId}">отправить</button>
@@ -1070,7 +1086,7 @@ function renderModal(){
         </p>
         <div class="id-card" style="text-align:center; margin-top:0;">
           <div class="id-card-label">код штаба</div>
-          <div style="font-family:var(--mono); font-size:32px; font-weight:700; letter-spacing:4px; color:var(--accent-ink); margin-top:8px;">${modal.code}</div>
+          <div style="font-family:var(--mono); font-size:32px; font-weight:700; letter-spacing:4px; color:var(--accent-ink); margin-top:8px; user-select:text; -webkit-user-select:text;">${modal.code}</div>
         </div>
         <div class="btn-row" style="margin-top:14px">
           <button id="copyRoomCodeBtn" data-code="${modal.code}">скопировать код</button>
