@@ -336,10 +336,9 @@ async function copyCodeToClipboard(code, feedbackEl){
 }
 function shareCode(code){
   const text = `Присоединяйся к нашему секретному штабу! Код: ${code}`;
+  copyCodeToClipboard(code, document.getElementById('copyFeedback'));
   if(navigator.share){
-    navigator.share({ text }).catch(()=>{ copyCodeToClipboard(code, document.getElementById('copyFeedback')); });
-  } else {
-    copyCodeToClipboard(code, document.getElementById('copyFeedback'));
+    navigator.share({ text }).catch(()=>{});
   }
 }
 function wireCodeButtons(){
