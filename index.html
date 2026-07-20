@@ -252,8 +252,8 @@
   <div id="root"></div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js" crossorigin="anonymous"></script>
 <script>
 /* ====== НАСТРОЙКА FIREBASE ======
    1. Зайдите на https://console.firebase.google.com, создайте проект (бесплатно).
@@ -275,7 +275,7 @@ function showError(msg){
   const el = document.getElementById('errorBanner');
   if(el){ el.textContent = 'Ошибка: ' + msg; el.style.display = 'block'; }
 }
-window.addEventListener('error', (e)=>{ showError(e.message); });
+window.addEventListener('error', (e)=>{ showError(e.message + ' (' + (e.filename||'') + ':' + (e.lineno||'') + ')'); });
 window.addEventListener('unhandledrejection', (e)=>{ showError((e.reason && e.reason.message) ? e.reason.message : String(e.reason)); });
 
 firebase.initializeApp(firebaseConfig);
@@ -386,10 +386,22 @@ function defaultState(){
   };
 }
 
+function normalizeState(val){
+  const d = defaultState();
+  const v = val || {};
+  return {
+    agents: Array.isArray(v.agents) ? v.agents : d.agents,
+    channels: Array.isArray(v.channels) ? v.channels : d.channels,
+    missions: Array.isArray(v.missions) ? v.missions : d.missions,
+    rewards: Array.isArray(v.rewards) ? v.rewards : d.rewards,
+    messages: (v.messages && typeof v.messages==='object') ? Object.assign({hq:[]}, v.messages) : d.messages
+  };
+}
+
 async function loadState(){
   return new Promise((resolve)=>{
     db.ref('appState').once('value', snap=>{
-      state = snap.val() || defaultState();
+      state = normalizeState(snap.val());
       resolve();
     }, (err)=>{ showError('loadState: '+err.message); state = defaultState(); resolve(); });
   });
@@ -399,7 +411,7 @@ function watchState(){
   db.ref('appState').on('value', snap=>{
     const val = snap.val();
     if(val){
-      state = val;
+      state = normalizeState(val);
       if(myAgentId && view!=='loading'){ render(); }
     }
   }, err=>{ showError('watchState: '+err.message); });
@@ -443,11 +455,12 @@ function agentById(id){ return state.agents.find(a => a.id === id); }
 function isDirector(){ const m = me(); return m && m.role === "director"; }
 
 async function deleteAgentById(id){
+  state = normalizeState(state);
   state.agents = state.agents.filter(a=>a.id!==id);
   state.missions = state.missions.filter(x=>x.assignedTo!==id);
   state.rewards.forEach(r=>{ if(r.redeemedBy===id) r.redeemedBy=null; });
   Object.keys(state.messages).forEach(chId=>{
-    state.messages[chId] = state.messages[chId].filter(msg=>msg.from!==id);
+    state.messages[chId] = (state.messages[chId]||[]).filter(msg=>msg.from!==id);
   });
   await saveState();
   if(myAgentId===id){
