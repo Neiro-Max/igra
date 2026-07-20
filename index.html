@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Секретный штаб</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F3F7F5;
+    --panel:#FFFFFF;
+    --panel-alt:#EEF3F1;
+    --border:#DFE7E3;
+    --border-strong:#C7D3CD;
+    --text:#152420;
+    --text-secondary:#5B6D66;
+    --text-muted:#8EA098;
+    --accent:#12C88E;
+    --accent-tint:#DFFBF0;
+    --accent-ink:#0B7A56;
+    --accent-dark:#DFFBF0;
+    --amber:#FFA724;
+    --amber-tint:#FFEFD6;
+    --amber-dark:#FFEFD6;
+    --amber-ink:#9A5F00;
+    --danger:#FF5A4E;
+    --danger-tint:#FFE3DF;
+    --danger-dark:#FFE3DF;
+    --danger-ink:#C23524;
+    --violet:#8C6BF2;
+    --violet-tint:#EEE7FF;
+    --glow:#12C88E;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --sans:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .spin-glow{ animation: spinGlow 9s linear infinite; }
+    .pulse-badge{ animation: pulseBadge 1.6s ease-in-out infinite; }
+    .glow-btn{ animation: glowPulse 2.4s ease-in-out infinite; }
+    .marquee-track{ animation: marqueeScroll 16s linear infinite; }
+  }
+  @keyframes spinGlow{
+    0%{ transform:rotate(0deg); box-shadow:0 0 8px 1px var(--glow), 0 0 0px 0px var(--glow); }
+    50%{ box-shadow:0 0 16px 4px var(--glow), 0 0 2px 1px var(--glow); }
+    100%{ transform:rotate(360deg); box-shadow:0 0 8px 1px var(--glow), 0 0 0px 0px var(--glow); }
+  }
+  @keyframes pulseBadge{
+    0%,100%{ box-shadow:0 0 0 0 rgba(255,90,78,0.55); }
+    50%{ box-shadow:0 0 0 6px rgba(255,90,78,0); }
+  }
+  @keyframes glowPulse{
+    0%,100%{ box-shadow:0 0 0 0 var(--glow); }
+    50%{ box-shadow:0 0 14px 2px var(--glow); }
+  }
+  @keyframes marqueeScroll{
+    0%{ transform:translateX(0); }
+    100%{ transform:translateX(-50%); }
+  }
+  .marquee-wrap{
+    overflow:hidden; white-space:nowrap; background:linear-gradient(90deg, var(--accent), var(--violet)); border:none;
+    border-radius:20px; padding:9px 0; margin-bottom:16px; box-shadow:0 0 14px 0 var(--glow);
+  }
+  .marquee-track{ display:inline-block; padding-left:100%; }
+  .marquee-track span{ font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:0.4px; color:#fff; padding:0 18px; }
+  .theme-swatch{ width:40px; height:40px; border-radius:50%; border:2px solid var(--border-strong); cursor:pointer; flex-shrink:0; }
+  .theme-swatch.active{ border-color:var(--text); }
+  .channel-open-panel{
+    flex:1; min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    background:var(--accent-tint); border:1px dashed var(--border-strong); border-radius:16px; cursor:pointer; padding:20px;
+    text-align:center; transition:opacity .15s;
+  }
+  .channel-open-panel:active{ opacity:0.75; }
+  .channel-open-icon{
+    width:48px; height:48px; border-radius:50%; background:var(--panel); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+  }
+  .channel-open-title{ font-size:15px; font-weight:500; color:var(--text); }
+  .channel-open-sub{ font-size:12px; color:var(--text-secondary); font-family:var(--mono); }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    min-height:100vh; display:flex; justify-content:center;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{width:100%; max-width:460px; min-height:100vh; display:flex; flex-direction:column; position:relative;
+    background:
+      radial-gradient(circle at 12% 6%, rgba(18,200,142,0.10), transparent 42%),
+      radial-gradient(circle at 90% 18%, rgba(140,107,242,0.08), transparent 38%),
+      radial-gradient(circle at 80% 90%, rgba(255,167,36,0.07), transparent 40%),
+      var(--bg);
+  }
+  .screen{flex:1; display:flex; flex-direction:column; padding:20px 18px 90px;}
+  .hidden{display:none !important;}
+
+  /* Header / brand */
+  .brand{display:flex; align-items:center; gap:10px; margin-bottom:22px;}
+  .brand-mark{width:34px; height:34px; clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background:var(--accent-dark); display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .brand-mark i{color:var(--accent-ink); font-style:normal; font-family:var(--mono); font-size:14px; font-weight:700;}
+  .brand-title{font-family:var(--mono); font-size:13px; letter-spacing:1.5px; color:var(--text-secondary); text-transform:uppercase;}
+  .brand-sub{font-size:11px; color:var(--text-muted); font-family:var(--mono); letter-spacing:0.5px;}
+
+  h1{font-family:var(--mono); font-size:20px; font-weight:700; letter-spacing:0.3px; margin-bottom:6px;}
+  h2{font-family:var(--mono); font-size:13px; letter-spacing:1px; text-transform:uppercase; color:var(--text-secondary); margin:22px 0 10px;}
+  p.lead{color:var(--text-secondary); font-size:14px; line-height:1.6; margin-bottom:20px;}
+
+  /* Inputs */
+  input, textarea, select{
+    width:100%; background:var(--panel-alt); border:1px solid var(--border-strong); color:var(--text);
+    padding:11px 12px; border-radius:6px; font-size:14px; font-family:var(--sans); outline:none;
+  }
+  input::placeholder, textarea::placeholder{color:var(--text-muted);}
+  input:focus, textarea:focus, select:focus{border-color:var(--accent);}
+  label.field-label{display:block; font-size:11px; font-family:var(--mono); letter-spacing:0.8px; text-transform:uppercase; color:var(--text-muted); margin:14px 0 6px;}
+  label.field-label:first-child{margin-top:0;}
+
+  button{
+    font-family:var(--sans); font-size:14px; font-weight:500; border-radius:6px; border:1px solid var(--border-strong);
+    background:transparent; color:var(--text); padding:11px 16px; cursor:pointer; transition:opacity .15s;
+  }
+  button:active{opacity:0.7;}
+  .btn-primary{background:linear-gradient(135deg, var(--accent), var(--violet)); border-color:transparent; color:#fff; font-weight:700;}
+  .btn-danger-outline{border-color:var(--danger); color:var(--danger);}
+  .btn-success{background:linear-gradient(135deg, var(--accent), var(--violet)); border:none; color:#fff; font-weight:700;}
+  .btn-block{width:100%;}
+  .btn-row{display:flex; gap:8px;}
+  .btn-row button{flex:1;}
+  .btn-ghost-sm{padding:6px 10px; font-size:12px; border-color:var(--border);}
+  .btn-enter{background:var(--accent); color:#0A1F19; border:none; font-weight:700; margin-right:6px;}
+  .theme-btn{
+    background:var(--accent); color:#0A1F19; border:none; font-weight:700; font-size:12px;
+    padding:9px 12px; border-radius:20px; margin-right:8px; box-shadow:0 0 10px 1px var(--glow);
+  }
+
+  /* Role chooser cards */
+  .choice-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px;
+    display:flex; align-items:center; gap:12px; box-shadow:0 2px 10px rgba(21,36,32,0.05);
+  }
+  .choice-card:active{border-color:var(--accent);}
+  .choice-card .seal{width:38px; height:38px; clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-weight:700; font-size:13px; flex-shrink:0;}
+  .choice-name{font-size:14px; font-weight:500;}
+  .choice-sub{font-size:12px; color:var(--text-muted); font-family:var(--mono);}
+
+  /* Bottom nav */
+  #nav{
+    position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    width:calc(100% - 32px); max-width:428px;
+    background:var(--panel); border:1px solid var(--border); border-radius:30px; display:flex; gap:6px; padding:10px 10px;
+    z-index:10; box-shadow:0 8px 24px rgba(21,36,32,0.14);
+  }
+  #nav::before{
+    content:''; position:absolute; top:-15px; left:50%; transform:translateX(-50%);
+    width:5px; height:15px; background:var(--border-strong); border-radius:3px;
+  }
+  #nav::after{
+    content:''; position:absolute; top:-23px; left:50%; transform:translateX(-50%);
+    width:12px; height:12px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px 2px var(--glow);
+  }
+  #nav-grille{
+    position:absolute; top:-38px; left:50%; transform:translateX(-50%);
+    display:flex; gap:4px;
+  }
+  #nav-grille span{ width:3px; height:9px; border-radius:2px; background:var(--border-strong); }
+  #nav button{
+    flex:1; background:var(--panel-alt); border:1px solid var(--border); border-radius:18px; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:8px 2px; color:var(--text-secondary); font-size:10px; font-family:var(--mono); letter-spacing:0.3px; position:relative;
+    transition:background .15s, color .15s, box-shadow .15s;
+  }
+  #nav button.active{
+    background:linear-gradient(135deg, var(--accent), var(--violet)); color:#fff; border-color:transparent;
+    box-shadow:0 0 12px 0 var(--glow);
+  }
+  #nav .nav-icon{font-size:17px; font-style:normal;}
+  #nav .badge{position:absolute; top:2px; right:10px; background:var(--danger); color:#fff; font-size:9px; font-family:var(--mono); border-radius:8px; padding:1px 5px; min-width:14px; text-align:center;}
+
+  /* Cards general */
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px; box-shadow:0 2px 10px rgba(21,36,32,0.05);}
+  .stat-row{display:flex; gap:10px; margin-bottom:4px;}
+  .stat-box{flex:1; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow:0 2px 10px rgba(21,36,32,0.05);}
+  .stat-label{font-size:11px; font-family:var(--mono); text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); margin-bottom:4px;}
+  .stat-value{font-size:22px; font-family:var(--mono); font-weight:700;}
+
+  .progress-track{height:7px; background:var(--panel-alt); border-radius:4px; overflow:hidden; margin-top:8px;}
+  .progress-fill{height:100%; background:var(--accent); border-radius:4px;}
+
+  /* Mission card */
+  .mission-tab{
+    position:absolute; top:0; right:14px; background:var(--accent); color:#0A1F19; font-family:var(--mono);
+    font-size:11px; font-weight:700; padding:3px 9px; border-radius:0 0 5px 5px; letter-spacing:0.4px;
+    box-shadow:0 0 8px 0 var(--glow);
+  }
+  .mission-card{position:relative; background:var(--panel); border:1px solid var(--border); border-left:4px solid var(--border-strong); border-radius:14px; padding:16px 14px 14px; margin-bottom:10px; box-shadow:0 2px 10px rgba(21,36,32,0.05);}
+  .mission-card.st-open{border-left-color:var(--violet);}
+  .mission-card.st-review{border-left-color:var(--amber);}
+  .mission-card.st-approved{border-left-color:var(--accent);}
+  .mission-card.st-rejected{border-left-color:var(--danger);}
+  .mission-title{font-size:14px; font-weight:500; margin-bottom:3px; padding-right:70px;}
+  .mission-meta{font-size:12px; color:var(--text-muted); font-family:var(--mono);}
+  .status-pill{display:inline-block; font-size:10px; font-family:var(--mono); letter-spacing:0.4px; padding:2px 8px; border-radius:20px; margin-top:8px; text-transform:uppercase;}
+  .status-open{background:var(--panel-alt); color:var(--text-secondary); border:1px solid var(--border-strong);}
+  .status-review{background:var(--amber); color:#2A1D00;}
+  .status-approved{background:var(--accent); color:#0A1F19;}
+  .status-rejected{background:var(--danger); color:#2A0A05;}
+
+  /* Reward card */
+  .reward-card{display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:13px 14px; margin-bottom:10px; box-shadow:0 2px 10px rgba(21,36,32,0.05);}
+  .reward-icon{width:38px; height:38px; border-radius:8px; background:var(--panel-alt); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;}
+  .reward-title{font-size:14px; font-weight:500;}
+  .reward-cost{font-size:12px; font-family:var(--mono); color:var(--text-muted);}
+
+  /* Channel list */
+  .channel-row{display:flex; align-items:center; gap:12px; padding:11px 4px; border-top:1px solid var(--border); cursor:pointer;}
+  .channel-row:first-child{border-top:none;}
+  .seal-sm{width:36px; height:36px; clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-weight:700; font-size:12px; flex-shrink:0;}
+  .channel-name{font-size:14px; font-weight:500;}
+  .channel-sub{font-size:12px; color:var(--text-muted);}
+
+  /* Chat screen */
+  #chatMessages{display:flex; flex-direction:column; gap:9px; flex:1; overflow-y:auto; padding:4px 0 10px;}
+  .msg-in{align-self:flex-start; max-width:82%; background:var(--panel); border:1px solid var(--border); border-radius:12px 12px 12px 3px; padding:9px 12px;}
+  .msg-out{align-self:flex-end; max-width:82%; background:var(--accent-tint); border-radius:12px 12px 3px 12px; padding:9px 12px;}
+  .msg-out p{color:var(--accent-ink);}
+  .msg-text{font-size:14px;}
+  .msg-meta{font-size:10px; color:var(--text-muted); font-family:var(--mono); margin-top:3px;}
+  .msg-sender{font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text-secondary); margin-bottom:2px;}
+  .chat-input-row{display:flex; gap:8px; align-items:center; border-top:1px solid var(--border); padding-top:12px; margin-top:auto;}
+  .chat-input-row input{flex:1;}
+  .send-btn{width:40px; height:40px; padding:0; border-radius:50%; background:linear-gradient(135deg, var(--accent), var(--violet)); border:none; color:#fff; font-size:16px; flex-shrink:0; box-shadow:0 0 10px 0 var(--glow);}
+
+  .chat-header{display:flex; align-items:center; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--border); margin-bottom:12px;}
+  .back-btn{background:none; border:none; color:var(--text-secondary); font-size:18px; padding:4px 8px 4px 0;}
+
+  .empty-state{text-align:center; padding:40px 10px; color:var(--text-muted);}
+  .empty-state .stamp{font-family:var(--mono); font-size:11px; letter-spacing:2px; border:1px dashed var(--border-strong); display:inline-block; padding:6px 14px; border-radius:6px; margin-bottom:10px; transform:rotate(-3deg);}
+
+  .modal-overlay{position:fixed; inset:0; background:rgba(8,12,13,0.72); display:flex; align-items:flex-end; justify-content:center; z-index:100;}
+  .modal-sheet{width:100%; max-width:460px; background:var(--panel); border-radius:20px 20px 0 0; padding:20px 18px calc(20px + env(safe-area-inset-bottom)); max-height:85vh; overflow-y:auto; box-shadow:0 -8px 24px rgba(21,36,32,0.12);}
+  .modal-title{font-family:var(--mono); font-size:15px; font-weight:700; margin-bottom:14px;}
+
+  .id-card{background:var(--accent-tint); border:1px solid var(--border-strong); border-radius:16px; padding:18px; margin-top:16px;}
+  .id-card-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;}
+  .id-card-label{font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase;}
+
+  ::-webkit-scrollbar{width:0; height:0;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="root"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script>
+/* ====== НАСТРОЙКА FIREBASE ======
+   1. Зайдите на https://console.firebase.google.com, создайте проект (бесплатно).
+   2. В настройках проекта добавьте "веб-приложение" и скопируйте объект конфигурации.
+   3. В разделе Build → Realtime Database создайте базу (Start in test mode для начала).
+   4. Вставьте свои значения ниже вместо ВСТАВЬТЕ_СЮДА.
+   5. Загрузите этот файл на GitHub (например, через GitHub Pages) — все устройства,
+      открывшие страницу, будут делиться одними и теми же данными в реальном времени. */
+const firebaseConfig = {
+  apiKey: "ВСТАВЬТЕ_СЮДА",
+  authDomain: "ВСТАВЬТЕ_СЮДА.firebaseapp.com",
+  databaseURL: "https://ВСТАВЬТЕ_СЮДА-default-rtdb.firebaseio.com",
+  projectId: "ВСТАВЬТЕ_СЮДА",
+  storageBucket: "ВСТАВЬТЕ_СЮДА.appspot.com",
+  messagingSenderId: "ВСТАВЬТЕ_СЮДА",
+  appId: "ВСТАВЬТЕ_СЮДА"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const STORAGE_KEY = "hq_state_v1";
+const MY_ID_KEY = "hq_my_agent_id";
+
+let state = null;
+let myAgentId = null;
+let view = "loading";
+let activeChannelId = null;
+let modal = null;
+
+const SEAL_COLORS = ["#12C88E","#FFA724","#FF5A4E","#5B8DEF","#F2569C","#8C6BF2"];
+
+const THEMES = {
+  neon:   { label:"неон",     mode:"dark",  bg:"#0B0F17", panel:"#141C26", panelAlt:"#1B2530", border:"#293542", borderStrong:"#3B4A59",
+            text:"#EAF2FF", textSecondary:"#93A8BD", textMuted:"#5C6E80",
+            amber:"#FFD23F", amberTint:"rgba(255,210,63,0.18)", amberInk:"#FFE68A",
+            danger:"#FF4D4D", dangerTint:"rgba(255,77,77,0.18)", dangerInk:"#FF8A8A",
+            violet:"#7C4DFF", violetTint:"rgba(124,77,255,0.18)",
+            accentH:322, accentS:100, accentL:60, swatch:"#FF2E9A" },
+  tropics:{ label:"тропики",  mode:"light", bg:"#FFF8EC", panel:"#FFFFFF", panelAlt:"#FFF1DC", border:"#F3E2C2", borderStrong:"#E6CC9C",
+            text:"#3A2A16", textSecondary:"#8A6B45", textMuted:"#B79A6E",
+            amber:"#FFB020", amberTint:"#FFEFD0", amberInk:"#8A5800",
+            danger:"#FF3B5C", dangerTint:"#FFD9E1", dangerInk:"#B0102E",
+            violet:"#8C6BF2", violetTint:"#EDE5FF",
+            accentH:12, accentS:100, accentL:63, swatch:"#FF6B4A" },
+  ocean:  { label:"океан",    mode:"light", bg:"#EAF6FF", panel:"#FFFFFF", panelAlt:"#DCEFFB", border:"#C7E3F5", borderStrong:"#A9D2EE",
+            text:"#0E2A3D", textSecondary:"#4E7999", textMuted:"#84A9C2",
+            amber:"#FFA724", amberTint:"#FFEBD0", amberInk:"#8A5800",
+            danger:"#FF5A6E", dangerTint:"#FFDEE2", dangerInk:"#B01430",
+            violet:"#7C6BFF", violetTint:"#E6E2FF",
+            accentH:213, accentS:100, accentL:58, swatch:"#2E8BFF" },
+  sunset: { label:"закат",    mode:"dark",  bg:"#2B1240", panel:"#3A1B57", panelAlt:"#451F68", border:"#5A2C82", borderStrong:"#713AA3",
+            text:"#FDEBFF", textSecondary:"#D6A9F0", textMuted:"#A97FC7",
+            amber:"#FFC24B", amberTint:"rgba(255,194,75,0.2)", amberInk:"#FFDA8F",
+            danger:"#FF6B6B", dangerTint:"rgba(255,107,107,0.2)", dangerInk:"#FF9E9E",
+            violet:"#B98CFF", violetTint:"rgba(185,140,255,0.2)",
+            accentH:333, accentS:100, accentL:68, swatch:"#FF5FA2" },
+  jungle: { label:"джунгли",  mode:"dark",  bg:"#0F1F17", panel:"#16281F", panelAlt:"#1D3327", border:"#2A4536", borderStrong:"#3B5C48",
+            text:"#EAFBF0", textSecondary:"#8FC1A4", textMuted:"#5D8F71",
+            amber:"#FFD23F", amberTint:"rgba(255,210,63,0.18)", amberInk:"#FFE68A",
+            danger:"#FF5C5C", dangerTint:"rgba(255,92,92,0.18)", dangerInk:"#FF9494",
+            violet:"#8C6BFF", violetTint:"rgba(140,107,255,0.18)",
+            accentH:152, accentS:100, accentL:57, swatch:"#39FF9E" }
+};
+const THEME_KEY = "hq_theme_v1";
+let themeState = { theme:"neon", hue:0 };
+
+function applyTheme(){
+  const t = THEMES[themeState.theme] || THEMES.neon;
+  const h = ((t.accentH + themeState.hue) % 360 + 360) % 360;
+  const s = t.accentS, l = t.accentL;
+  const accent = `hsl(${h},${s}%,${l}%)`;
+  const accentTint = `hsla(${h},${s}%,${l}%,${t.mode==='dark'?0.20:0.14})`;
+  const inkL = t.mode==='dark' ? Math.min(l+28,88) : Math.max(l-24,16);
+  const accentInk = `hsl(${h},${s}%,${inkL}%)`;
+  const root = document.documentElement.style;
+  root.setProperty('--bg', t.bg);
+  root.setProperty('--panel', t.panel);
+  root.setProperty('--panel-alt', t.panelAlt);
+  root.setProperty('--border', t.border);
+  root.setProperty('--border-strong', t.borderStrong);
+  root.setProperty('--text', t.text);
+  root.setProperty('--text-secondary', t.textSecondary);
+  root.setProperty('--text-muted', t.textMuted);
+  root.setProperty('--amber', t.amber);
+  root.setProperty('--amber-tint', t.amberTint);
+  root.setProperty('--amber-dark', t.amberTint);
+  root.setProperty('--amber-ink', t.amberInk);
+  root.setProperty('--danger', t.danger);
+  root.setProperty('--danger-tint', t.dangerTint);
+  root.setProperty('--danger-dark', t.dangerTint);
+  root.setProperty('--danger-ink', t.dangerInk);
+  root.setProperty('--violet', t.violet);
+  root.setProperty('--violet-tint', t.violetTint);
+  root.setProperty('--accent', accent);
+  root.setProperty('--accent-tint', accentTint);
+  root.setProperty('--accent-dark', accentTint);
+  root.setProperty('--accent-ink', accentInk);
+  root.setProperty('--glow', accent);
+}
+
+async function loadTheme(){
+  try{
+    const saved = localStorage.getItem(THEME_KEY);
+    if(saved) themeState = JSON.parse(saved);
+  }catch(e){}
+  applyTheme();
+}
+function saveTheme(){
+  try{ localStorage.setItem(THEME_KEY, JSON.stringify(themeState)); }catch(e){}
+}
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+function defaultState(){
+  return {
+    agents: [],
+    channels: [
+      { id:"hq", name:"штаб-квартира", members:"all" }
+    ],
+    missions: [],
+    rewards: [],
+    messages: { hq: [] }
+  };
+}
+
+async function loadState(){
+  return new Promise((resolve)=>{
+    db.ref('appState').once('value', snap=>{
+      state = snap.val() || defaultState();
+      resolve();
+    }, ()=>{ state = defaultState(); resolve(); });
+  });
+}
+
+function watchState(){
+  db.ref('appState').on('value', snap=>{
+    const val = snap.val();
+    if(val){
+      state = val;
+      if(myAgentId && view!=='loading'){ render(); }
+    }
+  });
+}
+
+async function saveState(){
+  try{ await db.ref('appState').set(state); }catch(e){}
+}
+function loadMyId(){
+  try{ myAgentId = localStorage.getItem(MY_ID_KEY) || null; }catch(e){ myAgentId = null; }
+}
+function saveMyId(id){
+  myAgentId = id;
+  try{ localStorage.setItem(MY_ID_KEY, id); }catch(e){}
+}
+
+let onlineIds = new Set();
+const PRESENCE_TTL = 90000;
+const HEARTBEAT_INTERVAL = 25000;
+
+async function heartbeat(){
+  if(!myAgentId) return;
+  try{
+    const ref = db.ref('presence/'+myAgentId);
+    await ref.set(Date.now());
+    ref.onDisconnect().remove();
+  }catch(e){}
+}
+
+function watchPresence(){
+  db.ref('presence').on('value', snap=>{
+    const val = snap.val() || {};
+    const now = Date.now();
+    onlineIds = new Set(Object.keys(val).filter(id => now - val[id] < PRESENCE_TTL));
+    if(myAgentId && view==='home' && !modal) render();
+  });
+}
+
+function me(){ return state.agents.find(a => a.id === myAgentId) || null; }
+function agentById(id){ return state.agents.find(a => a.id === id); }
+function isDirector(){ const m = me(); return m && m.role === "director"; }
+
+async function deleteAgentById(id){
+  state.agents = state.agents.filter(a=>a.id!==id);
+  state.missions = state.missions.filter(x=>x.assignedTo!==id);
+  state.rewards.forEach(r=>{ if(r.redeemedBy===id) r.redeemedBy=null; });
+  Object.keys(state.messages).forEach(chId=>{
+    state.messages[chId] = state.messages[chId].filter(msg=>msg.from!==id);
+  });
+  await saveState();
+  if(myAgentId===id){
+    myAgentId=null;
+    try{ localStorage.removeItem(MY_ID_KEY); }catch(err){}
+    try{ await db.ref('presence/'+id).remove(); }catch(err){}
+  }
+}
+
+function pointsBank(agentId){
+  return state.missions
+    .filter(m => m.assignedTo === agentId && m.status === "approved" && !m.redeemed)
+    .reduce((sum,m) => sum + m.points, 0);
+}
+function redeemedTotal(agentId){
+  return state.rewards
+    .filter(r => r.redeemedBy === agentId)
+    .reduce((sum,r) => sum + r.cost, 0);
+}
+function availablePoints(agentId){
+  const earned = state.missions.filter(m=>m.assignedTo===agentId && m.status==="approved").reduce((s,m)=>s+m.points,0);
+  const spent = state.rewards.filter(r=>r.redeemedBy===agentId).reduce((s,r)=>s+r.cost,0);
+  return earned - spent;
+}
+
+function sealStyle(color){
+  return `background:${color}22; color:${color};`;
+}
+function initials(name){
+  return name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+}
+
+/* ---------- RENDER ---------- */
+
+function render(){
+  const root = document.getElementById("root");
+  if(view === "loading"){ root.innerHTML = ""; return; }
+  if(!myAgentId || !me()){
+    root.innerHTML = renderIdentity() + (modal ? renderModal() : '');
+    attachIdentityEvents();
+    return;
+  }
+
+  let body = "";
+  if(view === "home") body = renderHome();
+  else if(view === "missions") body = renderMissions();
+  else if(view === "review") body = renderReview();
+  else if(view === "rewards") body = renderRewards();
+  else if(view === "chat") body = renderChat();
+
+  root.innerHTML = `
+    <div class="screen" style="padding-bottom:${view==='chat'?'18px':'112px'}; ${view==='chat'?'display:flex;flex-direction:column;min-height:100vh;':''}">
+      ${body}
+    </div>
+    ${view!=='chat' ? renderNav() : ''}
+    ${modal ? renderModal() : ''}
+  `;
+  attachEvents();
+}
+
+function renderNav(){
+  const pendingReview = state.missions.filter(m=>m.status==="review").length;
+  const director = isDirector();
+  return `
+  <div id="nav">
+    <div id="nav-grille" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <button data-nav="home" class="${view==='home'?'active':''}"><span class="nav-icon">◈</span>штаб</button>
+    <button data-nav="missions" class="${view==='missions'?'active':''}"><span class="nav-icon">✦</span>миссии</button>
+    ${director ? `<button data-nav="review" class="${view==='review'?'active':''}" style="position:relative">
+        <span class="nav-icon">✓</span>проверка
+        ${pendingReview>0?`<span class="badge pulse-badge">${pendingReview}</span>`:''}
+      </button>` : ''}
+    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><span class="nav-icon">◆</span>награды</button>
+  </div>`;
+}
+
+function renderIdentity(){
+  const hasAgents = state.agents.length > 0;
+  return `
+  <div class="screen">
+    <div class="brand">
+      <div class="brand-mark spin-glow"><i>SHQ</i></div>
+      <div>
+        <div class="brand-title">секретный штаб</div>
+        <div class="brand-sub">закрытая сеть агентства</div>
+      </div>
+    </div>
+    <h1>кто вы?</h1>
+    <p class="lead">выберите свой позывной из списка, если вы уже зарегистрированы, или создайте нового агента.</p>
+
+    ${hasAgents ? `<h2>агенты в этом штабе</h2>
+      ${state.agents.map(a=>`
+        <div class="choice-card">
+          <div class="seal" style="${sealStyle(a.color)}">${initials(a.name)}</div>
+          <div style="flex:1">
+            <div class="choice-name">${escapeHtml(a.name)}</div>
+            <div class="choice-sub">${a.role==='director'?'директор':'агент'}</div>
+          </div>
+          <button class="btn-ghost-sm btn-enter" data-select-agent="${a.id}">войти →</button>
+          <button class="btn-ghost-sm" data-delete-agent="${a.id}" style="border-color:var(--danger); color:var(--danger);">удалить</button>
+        </div>
+      `).join('')}` : ''}
+
+    <h2>новый агент</h2>
+    <label class="field-label">ваш позывной</label>
+    <input id="newAgentName" placeholder="например: Ночная тень" maxlength="24"/>
+    <label class="field-label">роль</label>
+    <select id="newAgentRole">
+      <option value="agent">агент (ребёнок)</option>
+      <option value="director">директор (родитель)</option>
+    </select>
+    <button class="btn-primary btn-block" style="margin-top:16px" id="createAgentBtn">создать удостоверение ↗</button>
+  </div>`;
+}
+
+function renderHome(){
+  const m = me();
+  const myMissions = state.missions.filter(x=>x.assignedTo===m.id);
+  const activeMissions = myMissions.filter(x=>x.status==='open'||x.status==='review');
+  const pts = m.role==='agent' ? availablePoints(m.id) : null;
+  const totalAgentCount = state.agents.filter(a=>a.role==='agent').length;
+  const online = state.agents.filter(a=>a.role==='agent' && onlineIds.has(a.id)).length;
+  const totalOpen = state.missions.filter(x=>x.status==='open'||x.status==='review').length;
+  const lastMission = [...state.missions].reverse()[0];
+  const tickerBits = [
+    `◈ штаб на связи`,
+    `агентов в сети: ${online} из ${totalAgentCount}`,
+    `активных заданий: ${totalOpen}`,
+    lastMission ? `последняя миссия: ${lastMission.title}` : `миссий пока нет`,
+    m.role==='agent' ? `ваш баланс: ${pts} очков` : `на проверке: ${state.missions.filter(x=>x.status==='review').length}`
+  ];
+  const tickerText = tickerBits.map(t=>`<span>${escapeHtml(t)}</span>`).join('');
+
+  return `
+    <div class="brand">
+      <div class="brand-mark spin-glow"><i>SHQ</i></div>
+      <div style="flex:1">
+        <div class="brand-title">секретный штаб</div>
+        <div class="brand-sub">${m.role==='director'?'директор':'агент'} · ${escapeHtml(m.name)}</div>
+      </div>
+      <button class="theme-btn" data-open-theme="1" aria-label="сменить цвет темы">🎨 цвет</button>
+      <div class="seal-sm" style="${sealStyle(m.color)}; cursor:pointer;" data-open-profile="1">${initials(m.name)}</div>
+    </div>
+
+    <div class="marquee-wrap">
+      <div class="marquee-track">${tickerText}${tickerText}</div>
+    </div>
+
+    ${m.role==='agent' ? `
+    <div class="card">
+      <div class="stat-label">баланс очков</div>
+      <div class="stat-value">${pts}</div>
+      <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">копите на крупную награду или тратьте сейчас</div>
+    </div>` : `
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="stat-label">на проверке</div>
+        <div class="stat-value">${state.missions.filter(x=>x.status==='review').length}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">агентов</div>
+        <div class="stat-value">${state.agents.filter(a=>a.role==='agent').length}</div>
+      </div>
+    </div>
+    `}
+
+    <h2>активные миссии</h2>
+    ${activeMissions.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>нет активных заданий</div></div>` :
+      activeMissions.slice(0,3).map(missionCardHtml).join('')}
+
+    <h2>каналы связи</h2>
+    <div class="channel-open-panel" data-open-channel="hq">
+      <div class="channel-open-icon spin-glow">◈</div>
+      <div class="channel-open-title">штаб-квартира</div>
+      <div class="channel-open-sub">вся семья · нажмите, чтобы открыть переписку</div>
+    </div>
+  `;
+}
+
+function missionCardHtml(msn){
+  const assignee = agentById(msn.assignedTo);
+  const statusLabel = {open:'открыто', review:'на проверке', approved:'подтверждено', rejected:'отклонено'}[msn.status];
+  const statusClass = {open:'status-open', review:'status-review', approved:'status-approved', rejected:'status-rejected'}[msn.status];
+  const canMarkDone = !isDirector() && msn.assignedTo===myAgentId && msn.status==='open';
+  return `
+  <div class="mission-card st-${msn.status}">
+    <div class="mission-tab">${msn.points} О</div>
+    <div class="mission-title">${escapeHtml(msn.title)}</div>
+    <div class="mission-meta">${assignee?escapeHtml(assignee.name):'?'} ${msn.deadline?'· срок: '+escapeHtml(msn.deadline):''}</div>
+    <div><span class="status-pill ${statusClass}">${statusLabel}</span></div>
+    ${msn.status==='rejected' && msn.rejectReason ? `<div style="font-size:12px;color:var(--danger);margin-top:6px;">причина: ${escapeHtml(msn.rejectReason)}</div>` : ''}
+    ${canMarkDone ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-mark-done="${msn.id}">отметить выполненным</button>` : ''}
+  </div>`;
+}
+
+function renderMissions(){
+  const m = me();
+  const director = m.role==='director';
+  const list = director ? state.missions : state.missions.filter(x=>x.assignedTo===m.id);
+  const sorted = [...list].sort((a,b)=> (a.status==='open'?0:1) - (b.status==='open'?0:1));
+  return `
+    <h1>миссии</h1>
+    <p class="lead">${director?'все задания агентства':'ваши текущие задания'}</p>
+    ${director ? `<button class="btn-primary btn-block" style="margin-bottom:16px" id="newMissionBtn">+ новая миссия</button>` : ''}
+    ${sorted.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>заданий пока нет</div></div>` :
+      sorted.map(missionCardHtml).join('')}
+  `;
+}
+
+function renderReview(){
+  const pending = state.missions.filter(x=>x.status==='review');
+  return `
+    <h1>на проверке</h1>
+    <p class="lead">подтвердите выполненные задания, чтобы начислить очки</p>
+    ${pending.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>нечего проверять</div></div>` :
+      pending.map(msn=>{
+        const a = agentById(msn.assignedTo);
+        return `
+        <div class="card">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+            <div class="seal-sm" style="${sealStyle(a?a.color:'#12C88E')}">${a?initials(a.name):'?'}</div>
+            <div>
+              <div class="mission-title" style="padding-right:0">${a?escapeHtml(a.name):'?'}</div>
+              <div class="mission-meta">отметил выполнение</div>
+            </div>
+          </div>
+          <div style="font-size:14px; margin-bottom:2px;">${escapeHtml(msn.title)}</div>
+          <div class="mission-meta" style="margin-bottom:12px;">награда: ${msn.points} очков</div>
+          <div class="btn-row">
+            <button class="btn-danger-outline" data-reject="${msn.id}">отклонить</button>
+            <button class="btn-success glow-btn" data-approve="${msn.id}">подтвердить</button>
+          </div>
+        </div>`;
+      }).join('')}
+  `;
+}
+
+function renderRewards(){
+  const m = me();
+  const director = m.role==='director';
+  const rewards = state.rewards.filter(r=>!r.redeemedBy);
+  const pts = director ? null : availablePoints(m.id);
+  return `
+    <h1>награды</h1>
+    ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
+      <button class="btn-primary btn-block" style="margin-bottom:16px" id="newRewardBtn">+ вписать награду</button>`
+      : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value">${pts}</div></div>`}
+
+    <h2>список наград</h2>
+    ${rewards.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>наград пока нет</div></div>` :
+      rewards.map(r=>{
+        const canRedeem = !director && availablePoints(myAgentId) >= r.cost;
+        return `
+        <div class="reward-card">
+          <div class="reward-icon">◆</div>
+          <div style="flex:1">
+            <div class="reward-title">${escapeHtml(r.title)}</div>
+            <div class="reward-cost">${r.cost} очков</div>
+          </div>
+          ${!director ? `<button class="btn-ghost-sm" ${canRedeem?'':'disabled style="opacity:0.4"'} data-redeem="${r.id}">получить</button>` : ''}
+        </div>`;
+      }).join('')}
+
+    ${!director ? `<h2>история</h2>
+      ${state.rewards.filter(r=>r.redeemedBy===myAgentId).length===0 ? `<div style="font-size:13px;color:var(--text-muted)">пока ничего не получено</div>` :
+        state.rewards.filter(r=>r.redeemedBy===myAgentId).map(r=>`
+          <div class="reward-card" style="opacity:0.6"><div class="reward-icon">✓</div><div style="flex:1"><div class="reward-title">${escapeHtml(r.title)}</div><div class="reward-cost">получено · ${r.cost} очков</div></div></div>
+        `).join('')}` : ''}
+  `;
+}
+
+function renderChat(){
+  const ch = state.channels.find(c=>c.id===activeChannelId);
+  const msgs = state.messages[activeChannelId] || [];
+  const m = me();
+  return `
+    <div class="chat-header">
+      <button class="back-btn" data-nav="home">←</button>
+      <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">${initials(ch.name)}</div>
+      <div style="flex:1">
+        <div class="channel-name">${escapeHtml(ch.name)}</div>
+        <div class="channel-sub">${ch.members==='all'?'вся семья · на связи':'канал'}</div>
+      </div>
+    </div>
+    <div id="chatMessages">
+      ${msgs.length===0 ? `<div class="empty-state"><div class="stamp">тихо</div><div>сообщений пока нет</div></div>` :
+        msgs.map(msg=>{
+          const sender = agentById(msg.from);
+          const mine = msg.from === myAgentId;
+          if(msg.type==='mission'){
+            return `<div class="mission-card" style="align-self:flex-start; width:88%;">
+              <div class="mission-tab">${msg.points} О</div>
+              <div class="mission-meta" style="margin-bottom:4px;">новая миссия</div>
+              <div class="mission-title" style="padding-right:70px;">${escapeHtml(msg.title)}</div>
+              <div class="mission-meta">${msg.deadline?'срок: '+escapeHtml(msg.deadline):''}</div>
+            </div>`;
+          }
+          return `<div class="${mine?'msg-out':'msg-in'}">
+            ${!mine?`<div class="msg-sender">${sender?escapeHtml(sender.name):'?'}</div>`:''}
+            <div class="msg-text">${escapeHtml(msg.text)}</div>
+            <div class="msg-meta">${msg.time}</div>
+          </div>`;
+        }).join('')}
+    </div>
+    <div class="chat-input-row">
+      <input id="chatInput" placeholder="сообщение..." autocomplete="off"/>
+      <button class="send-btn" id="sendMsgBtn">→</button>
+    </div>
+  `;
+}
+
+function renderModal(){
+  if(modal.type === 'newMission'){
+    const agents = state.agents.filter(a=>a.role==='agent');
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">новая миссия</div>
+        <label class="field-label">название задания</label>
+        <input id="mTitle" placeholder="например: убрать комнату"/>
+        <label class="field-label">кому</label>
+        <select id="mAssignee">
+          ${agents.map(a=>`<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
+        </select>
+        <label class="field-label">очки за выполнение</label>
+        <input id="mPoints" type="number" min="1" value="10"/>
+        <label class="field-label">срок (необязательно)</label>
+        <input id="mDeadline" placeholder="например: суббота"/>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalCreateMission">создать</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'reject'){
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">отклонить задание</div>
+        <label class="field-label">почему?</label>
+        <textarea id="rejectReason" rows="3" placeholder="объясните, что нужно доделать"></textarea>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmReject">отклонить</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'profile'){
+    const m = me();
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">удостоверение агента</div>
+        <div class="id-card">
+          <div class="id-card-top">
+            <div>
+              <div class="id-card-label">позывной</div>
+              <div style="font-size:18px; font-weight:700; margin-top:2px;">${escapeHtml(m.name)}</div>
+            </div>
+            <div class="seal-sm" style="${sealStyle(m.color)}">${initials(m.name)}</div>
+          </div>
+          <div class="id-card-label">роль</div>
+          <div style="font-size:14px; margin-top:2px;">${m.role==='director'?'директор (родитель)':'агент (ребёнок)'}</div>
+        </div>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">закрыть</button>
+          <button class="btn-danger-outline" id="modalSwitchAgent">сменить агента</button>
+        </div>
+        <button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteSelf">удалить это удостоверение</button>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'confirmDelete'){
+    const agent = state.agents.find(a=>a.id===modal.agentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">удалить агента?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          удостоверение «${agent?escapeHtml(agent.name):''}» будет удалено вместе с его миссиями и сообщениями в чате. это нельзя отменить.
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmDelete">удалить</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'theme'){
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">цвет штаба</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите тему оформления или настройте свой оттенок ползунком</p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          ${Object.keys(THEMES).map(key=>{
+            const t = THEMES[key];
+            const active = themeState.theme===key;
+            return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+              <div class="theme-swatch ${active?'active':''}" style="background:${t.swatch};" data-pick-theme="${key}"></div>
+              <span style="font-size:11px;color:var(--text-muted);font-family:var(--mono);">${t.label}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        <label class="field-label">свой оттенок</label>
+        <input type="range" id="hueSlider" min="0" max="360" value="${themeState.hue}"/>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">готово</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'newReward'){
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">вписать награду</div>
+        <label class="field-label">название</label>
+        <input id="rTitle" placeholder="например: поход в кино"/>
+        <label class="field-label">цена в очках</label>
+        <input id="rCost" type="number" min="1" value="50"/>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalCreateReward">добавить</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  return '';
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- EVENTS ---------- */
+
+function attachIdentityEvents(){
+  document.querySelectorAll('[data-select-agent]').forEach(el=>{
+    el.onclick = async ()=>{
+      saveMyId(el.getAttribute('data-select-agent'));
+      await heartbeat();
+      view = 'home';
+      render();
+    };
+  });
+  document.querySelectorAll('[data-delete-agent]').forEach(el=>{
+    el.onclick = (e)=>{
+      e.stopPropagation();
+      const id = el.getAttribute('data-delete-agent');
+      modal = {type:'confirmDelete', agentId:id, from:'identity'};
+      render();
+    };
+  });
+  const btn = document.getElementById('createAgentBtn');
+  if(btn) btn.onclick = async ()=>{
+    const name = document.getElementById('newAgentName').value.trim();
+    if(!name) return;
+    const role = document.getElementById('newAgentRole').value;
+    const color = SEAL_COLORS[state.agents.length % SEAL_COLORS.length];
+    const id = uid();
+    state.agents.push({id, name, role, color});
+    await saveState();
+    saveMyId(id);
+    await heartbeat();
+    view = 'home';
+    render();
+  };
+
+  const modalCancel = document.getElementById('modalCancel');
+  if(modalCancel) modalCancel.onclick = ()=>{ modal=null; render(); };
+  const modalConfirmDelete = document.getElementById('modalConfirmDelete');
+  if(modalConfirmDelete) modalConfirmDelete.onclick = async ()=>{
+    await deleteAgentById(modal.agentId);
+    modal=null;
+    render();
+  };
+}
+
+function attachEvents(){
+  document.querySelectorAll('[data-nav]').forEach(el=>{
+    el.onclick = ()=>{ view = el.getAttribute('data-nav'); render(); };
+  });
+  document.querySelectorAll('[data-open-channel]').forEach(el=>{
+    el.onclick = ()=>{ activeChannelId = el.getAttribute('data-open-channel'); view='chat'; render(); setTimeout(scrollChatBottom,0); };
+  });
+  document.querySelectorAll('[data-mark-done]').forEach(el=>{
+    el.onclick = async ()=>{
+      const id = el.getAttribute('data-mark-done');
+      const msn = state.missions.find(x=>x.id===id);
+      if(msn){ msn.status='review'; await saveState(); render(); }
+    };
+  });
+  document.querySelectorAll('[data-approve]').forEach(el=>{
+    el.onclick = async ()=>{
+      const id = el.getAttribute('data-approve');
+      const msn = state.missions.find(x=>x.id===id);
+      if(msn){ msn.status='approved'; await saveState(); render(); }
+    };
+  });
+  document.querySelectorAll('[data-reject]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'reject', missionId: el.getAttribute('data-reject')}; render(); };
+  });
+  document.querySelectorAll('[data-redeem]').forEach(el=>{
+    el.onclick = async ()=>{
+      const id = el.getAttribute('data-redeem');
+      const r = state.rewards.find(x=>x.id===id);
+      if(r && availablePoints(myAgentId) >= r.cost){
+        r.redeemedBy = myAgentId;
+        await saveState(); render();
+      }
+    };
+  });
+  document.querySelectorAll('[data-open-profile]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'profile'}; render(); };
+  });
+  const themeBtn = document.querySelector('[data-open-theme]');
+  if(themeBtn) themeBtn.onclick = ()=>{ modal = {type:'theme'}; render(); };
+  const newMissionBtn = document.getElementById('newMissionBtn');
+  if(newMissionBtn) newMissionBtn.onclick = ()=>{ modal={type:'newMission'}; render(); };
+  const newRewardBtn = document.getElementById('newRewardBtn');
+  if(newRewardBtn) newRewardBtn.onclick = ()=>{ modal={type:'newReward'}; render(); };
+
+  const sendBtn = document.getElementById('sendMsgBtn');
+  if(sendBtn){
+    const doSend = async ()=>{
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if(!text) return;
+      const now = new Date();
+      const time = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+      state.messages[activeChannelId] = state.messages[activeChannelId] || [];
+      state.messages[activeChannelId].push({id:uid(), from:myAgentId, text, time, type:'text'});
+      await saveState();
+      render();
+      setTimeout(scrollChatBottom,0);
+    };
+    sendBtn.onclick = doSend;
+    const inputEl = document.getElementById('chatInput');
+    inputEl.onkeydown = (e)=>{ if(e.key==='Enter') doSend(); };
+    inputEl.focus();
+  }
+
+  const overlay = document.getElementById('modalOverlay');
+  if(overlay){
+    const cancel = document.getElementById('modalCancel');
+    if(cancel) cancel.onclick = ()=>{ modal=null; render(); };
+
+    document.querySelectorAll('[data-pick-theme]').forEach(el=>{
+      el.onclick = async ()=>{
+        themeState.theme = el.getAttribute('data-pick-theme');
+        applyTheme();
+        await saveTheme();
+        render();
+      };
+    });
+    const hueSlider = document.getElementById('hueSlider');
+    if(hueSlider){
+      hueSlider.oninput = ()=>{
+        themeState.hue = parseInt(hueSlider.value)||0;
+        applyTheme();
+      };
+      hueSlider.onchange = async ()=>{ await saveTheme(); };
+    }
+
+    const confirmDeleteBtn = document.getElementById('modalConfirmDelete');
+    if(confirmDeleteBtn) confirmDeleteBtn.onclick = async ()=>{
+      await deleteAgentById(modal.agentId);
+      modal=null; render();
+    };
+
+    const switchAgent = document.getElementById('modalSwitchAgent');
+    if(switchAgent) switchAgent.onclick = async ()=>{
+      const prevId = myAgentId;
+      myAgentId = null;
+      try{ localStorage.removeItem(MY_ID_KEY); }catch(e){}
+      try{ if(prevId) await db.ref('presence/'+prevId).remove(); }catch(e){}
+      modal = null; render();
+    };
+
+    const deleteSelf = document.getElementById('modalDeleteSelf');
+    if(deleteSelf) deleteSelf.onclick = ()=>{
+      modal = {type:'confirmDelete', agentId: myAgentId, from:'profile'};
+      render();
+    };
+
+    const createMission = document.getElementById('modalCreateMission');
+    if(createMission) createMission.onclick = async ()=>{
+      const title = document.getElementById('mTitle').value.trim();
+      const assignedTo = document.getElementById('mAssignee').value;
+      const points = parseInt(document.getElementById('mPoints').value)||10;
+      const deadline = document.getElementById('mDeadline').value.trim();
+      if(!title || !assignedTo) return;
+      const msn = {id:uid(), title, assignedTo, points, deadline, status:'open', createdBy: myAgentId};
+      state.missions.push(msn);
+      state.messages.hq = state.messages.hq || [];
+      state.messages.hq.push({id:uid(), type:'mission', title, points, deadline, from:myAgentId});
+      await saveState();
+      modal=null; view='missions'; render();
+    };
+
+    const confirmReject = document.getElementById('modalConfirmReject');
+    if(confirmReject) confirmReject.onclick = async ()=>{
+      const reason = document.getElementById('rejectReason').value.trim();
+      const msn = state.missions.find(x=>x.id===modal.missionId);
+      if(msn){ msn.status='rejected'; msn.rejectReason = reason; }
+      await saveState();
+      modal=null; render();
+    };
+
+    const createReward = document.getElementById('modalCreateReward');
+    if(createReward) createReward.onclick = async ()=>{
+      const title = document.getElementById('rTitle').value.trim();
+      const cost = parseInt(document.getElementById('rCost').value)||10;
+      if(!title) return;
+      state.rewards.push({id:uid(), title, cost, redeemedBy:null});
+      await saveState();
+      modal=null; render();
+    };
+  }
+}
+
+function scrollChatBottom(){
+  const el = document.getElementById('chatMessages');
+  if(el) el.scrollTop = el.scrollHeight;
+}
+
+/* ---------- INIT ---------- */
+(async function init(){
+  await loadTheme();
+  loadMyId();
+  await loadState();
+  watchState();
+  watchPresence();
+  view = 'home';
+  render();
+  await heartbeat();
+  setInterval(heartbeat, HEARTBEAT_INTERVAL);
+  window.addEventListener('beforeunload', ()=>{
+    if(myAgentId){ try{ db.ref('presence/'+myAgentId).remove(); }catch(e){} }
+  });
+})();
+</script>
+</body>
+</html>
