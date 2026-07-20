@@ -315,13 +315,17 @@ async function copyCodeToClipboard(code, feedbackEl){
     try{
       const ta = document.createElement('textarea');
       ta.value = code;
+      ta.setAttribute('readonly', '');
       ta.style.position = 'fixed';
       ta.style.left = '-9999px';
       ta.style.top = '0';
+      ta.style.fontSize = '16px';
       document.body.appendChild(ta);
       ta.focus();
       ta.select();
+      ta.setSelectionRange(0, code.length);
       ok = document.execCommand('copy');
+      ta.blur();
       document.body.removeChild(ta);
     }catch(e){ ok = false; }
   }
@@ -333,7 +337,7 @@ async function copyCodeToClipboard(code, feedbackEl){
 function shareCode(code){
   const text = `Присоединяйся к нашему секретному штабу! Код: ${code}`;
   if(navigator.share){
-    navigator.share({ text }).catch(()=>{});
+    navigator.share({ text }).catch(()=>{ copyCodeToClipboard(code, document.getElementById('copyFeedback')); });
   } else {
     copyCodeToClipboard(code, document.getElementById('copyFeedback'));
   }
