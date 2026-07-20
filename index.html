@@ -302,6 +302,30 @@ function saveRoomId(id){
 function myIdKey(){ return MY_ID_KEY + "_" + roomId; }
 function roomRef(path){ return db.ref('rooms/' + roomId + '/' + path); }
 
+async function copyCodeToClipboard(code, feedbackEl){
+  try{
+    await navigator.clipboard.writeText(code);
+    if(feedbackEl) feedbackEl.textContent = 'скопировано!';
+  }catch(e){
+    if(feedbackEl) feedbackEl.textContent = 'не удалось скопировать — выделите код вручную';
+  }
+  if(feedbackEl) setTimeout(()=>{ feedbackEl.textContent=''; }, 2500);
+}
+function shareCode(code){
+  const text = `Присоединяйся к нашему секретному штабу! Код: ${code}`;
+  if(navigator.share){
+    navigator.share({ text }).catch(()=>{});
+  } else {
+    copyCodeToClipboard(code, document.getElementById('copyFeedback'));
+  }
+}
+function wireCodeButtons(){
+  const copyBtn = document.getElementById('copyRoomCodeBtn');
+  if(copyBtn) copyBtn.onclick = ()=> copyCodeToClipboard(copyBtn.getAttribute('data-code'), document.getElementById('copyFeedback'));
+  const shareBtn = document.getElementById('shareRoomCodeBtn');
+  if(shareBtn) shareBtn.onclick = ()=> shareCode(shareBtn.getAttribute('data-code'));
+}
+
 let state = null;
 let myAgentId = null;
 let view = "loading";
@@ -641,6 +665,7 @@ function renderRoomScreen(){
 }
 
 function attachRoomEvents(){
+  wireCodeButtons();
   const createBtn = document.getElementById('createRoomBtn');
   if(createBtn) createBtn.onclick = ()=>{
     const code = generateRoomCode();
@@ -1003,6 +1028,11 @@ function renderModal(){
           <div style="font-size:14px; margin-top:2px;">${m.role==='director'?'директор (родитель)':'агент (ребёнок)'}</div>
           <div class="id-card-label" style="margin-top:14px;">код штаба</div>
           <div style="font-family:var(--mono); font-size:16px; letter-spacing:2px; color:var(--accent-ink); margin-top:2px;">${roomId}</div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn-ghost-sm" id="copyRoomCodeBtn" data-code="${roomId}">копировать</button>
+            <button class="btn-ghost-sm" id="shareRoomCodeBtn" data-code="${roomId}">отправить</button>
+          </div>
+          <div id="copyFeedback" style="font-size:12px; color:var(--accent-ink); height:16px; margin-top:4px;"></div>
         </div>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">закрыть</button>
@@ -1039,7 +1069,12 @@ function renderModal(){
           <div class="id-card-label">код штаба</div>
           <div style="font-family:var(--mono); font-size:32px; font-weight:700; letter-spacing:4px; color:var(--accent-ink); margin-top:8px;">${modal.code}</div>
         </div>
-        <button class="btn-primary btn-block" style="margin-top:18px" id="modalRoomContinue">продолжить →</button>
+        <div class="btn-row" style="margin-top:14px">
+          <button id="copyRoomCodeBtn" data-code="${modal.code}">скопировать код</button>
+          <button id="shareRoomCodeBtn" data-code="${modal.code}" class="btn-primary">отправить →</button>
+        </div>
+        <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
+        <button class="btn-block" style="margin-top:8px" id="modalRoomContinue">продолжить →</button>
       </div>
     </div>`;
   }
@@ -1167,6 +1202,7 @@ function attachIdentityEvents(){
 }
 
 function attachEvents(){
+  wireCodeButtons();
   document.querySelectorAll('[data-nav]').forEach(el=>{
     el.onclick = ()=>{ view = el.getAttribute('data-nav'); render(); };
   });
