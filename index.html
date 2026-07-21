@@ -581,8 +581,8 @@ function isDirector(){ const m = me(); return m && m.role === "director"; }
 async function deleteAgentById(id){
   state = normalizeState(state);
   state.agents = state.agents.filter(a=>a.id!==id);
-  state.missions = state.missions.filter(x=>x.assignedTo!==id);
-  state.rewards.forEach(r=>{ if(r.redeemedBy===id) r.redeemedBy=null; });
+  state.missions = state.missions.filter(x=>!missionAssignees(x).includes(id));
+  state.rewards.forEach(r=>{ if(r.redeemedBy===id || r.requestedBy===id){ r.redeemedBy=null; r.requestedBy=null; r.status='available'; } });
   Object.keys(state.messages).forEach(chId=>{
     state.messages[chId] = (state.messages[chId]||[]).filter(msg=>msg.from!==id);
   });
@@ -594,19 +594,35 @@ async function deleteAgentById(id){
   }
 }
 
+function missionAssignees(msn){
+  return Array.isArray(msn.assignedTo) ? msn.assignedTo : [msn.assignedTo];
+}
+function missionAssigneeNames(msn){
+  return missionAssignees(msn).map(id=>{ const a=agentById(id); return a?a.name:'?'; }).join(', ');
+}
+
 function pointsBank(agentId){
   return state.missions
-    .filter(m => m.assignedTo === agentId && m.status === "approved" && !m.redeemed)
+    .filter(m => missionAssignees(m).includes(agentId) && m.status === "approved" && !m.redeemed)
     .reduce((sum,m) => sum + m.points, 0);
+}
+function rewardStatus(r){
+  if(r.status) return r.status;
+  return r.redeemedBy ? 'redeemed' : 'available';
 }
 function redeemedTotal(agentId){
   return state.rewards
-    .filter(r => r.redeemedBy === agentId)
+    .filter(r => rewardStatus(r)==='redeemed' && r.redeemedBy === agentId)
+    .reduce((sum,r) => sum + r.cost, 0);
+}
+function pendingRequestedCost(agentId){
+  return state.rewards
+    .filter(r => rewardStatus(r)==='requested' && r.requestedBy === agentId)
     .reduce((sum,r) => sum + r.cost, 0);
 }
 function availablePoints(agentId){
-  const earned = state.missions.filter(m=>m.assignedTo===agentId && m.status==="approved").reduce((s,m)=>s+m.points,0);
-  const spent = state.rewards.filter(r=>r.redeemedBy===agentId).reduce((s,r)=>s+r.cost,0);
+  const earned = state.missions.filter(m=>missionAssignees(m).includes(agentId) && m.status==="approved").reduce((s,m)=>s+m.points,0);
+  const spent = state.rewards.filter(r=>rewardStatus(r)==='redeemed' && r.redeemedBy===agentId).reduce((s,r)=>s+r.cost,0);
   const adjusted = (state.adjustments||[]).filter(a=>a.agentId===agentId).reduce((s,a)=>s+a.delta,0);
   return earned - spent + adjusted;
 }
@@ -786,6 +802,11 @@ function attachRoomEvents(){
       modal = null;
       await startRoomSession();
     };
+    const cancelBtn = document.getElementById('modalCancel');
+    if(cancelBtn) cancelBtn.onclick = ()=>{
+      modal = (modal && modal.returnTo) || null;
+      render();
+    };
   }
 }
 
@@ -842,7 +863,7 @@ function renderIdentity(){
 
 function renderHome(){
   const m = me();
-  const myMissions = state.missions.filter(x=>x.assignedTo===m.id);
+  const myMissions = state.missions.filter(x=>missionAssignees(x).includes(m.id));
   const activeMissions = myMissions.filter(x=>x.status==='open'||x.status==='review');
   const pts = m.role==='agent' ? availablePoints(m.id) : null;
   const totalAgentCount = state.agents.filter(a=>a.role==='agent').length;
@@ -942,18 +963,19 @@ function renderChannelList(m){
 }
 
 function missionCardHtml(msn, showDelete){
-  const assignee = agentById(msn.assignedTo);
   const statusLabel = {open:'открыто', review:'на проверке', approved:'подтверждено', rejected:'отклонено'}[msn.status];
   const statusClass = {open:'status-open', review:'status-review', approved:'status-approved', rejected:'status-rejected'}[msn.status];
-  const canMarkDone = !isDirector() && msn.assignedTo===myAgentId && msn.status==='open';
+  const canMarkDone = !isDirector() && missionAssignees(msn).includes(myAgentId) && msn.status==='open';
+  const canRetry = !isDirector() && missionAssignees(msn).includes(myAgentId) && msn.status==='rejected';
   return `
   <div class="mission-card st-${msn.status}">
     <div class="mission-tab">${msn.points} О</div>
     <div class="mission-title">${escapeHtml(msn.title)}</div>
-    <div class="mission-meta">${assignee?escapeHtml(assignee.name):'?'} ${msn.deadline?'· срок: '+escapeHtml(msn.deadline):''}</div>
+    <div class="mission-meta">${escapeHtml(missionAssigneeNames(msn))} ${msn.deadline?'· срок: '+escapeHtml(msn.deadline):''}</div>
     <div><span class="status-pill ${statusClass}">${statusLabel}</span></div>
     ${msn.status==='rejected' && msn.rejectReason ? `<div style="font-size:12px;color:var(--danger);margin-top:6px;">причина: ${escapeHtml(msn.rejectReason)}</div>` : ''}
     ${canMarkDone ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-mark-done="${msn.id}">отметить выполненным</button>` : ''}
+    ${canRetry ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-retry-mission="${msn.id}">исправить и отправить снова</button>` : ''}
     ${showDelete ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}">удалить миссию</button>` : ''}
   </div>`;
 }
@@ -961,7 +983,7 @@ function missionCardHtml(msn, showDelete){
 function renderMissions(){
   const m = me();
   const director = m.role==='director';
-  const list = director ? state.missions : state.missions.filter(x=>x.assignedTo===m.id);
+  const list = director ? state.missions : state.missions.filter(x=>missionAssignees(x).includes(m.id));
   const sorted = [...list].sort((a,b)=> (a.status==='open'?0:1) - (b.status==='open'?0:1));
   return `
     <h1>миссии</h1>
@@ -980,18 +1002,19 @@ function renderReview(){
     <p class="lead">подтвердите выполненные задания, чтобы начислить очки</p>
     ${pending.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>нечего проверять</div></div>` :
       pending.map(msn=>{
-        const a = agentById(msn.assignedTo);
+        const names = missionAssigneeNames(msn);
+        const isGroup = missionAssignees(msn).length > 1;
         return `
         <div class="card">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-            <div class="seal-sm" style="${sealStyle(a?a.color:'#12C88E')}">${a?initials(a.name):'?'}</div>
+            <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">${isGroup?'✦':initials(names)}</div>
             <div>
-              <div class="mission-title" style="padding-right:0">${a?escapeHtml(a.name):'?'}</div>
-              <div class="mission-meta">отметил выполнение</div>
+              <div class="mission-title" style="padding-right:0">${escapeHtml(names)}</div>
+              <div class="mission-meta">${isGroup?'групповое задание · ':''}отметили выполнение</div>
             </div>
           </div>
           <div style="font-size:14px; margin-bottom:2px;">${escapeHtml(msn.title)}</div>
-          <div class="mission-meta" style="margin-bottom:12px;">награда: ${msn.points} очков</div>
+          <div class="mission-meta" style="margin-bottom:12px;">награда: ${msn.points} очков${isGroup?' каждому':''}</div>
           <div class="btn-row">
             <button class="btn-danger-outline" data-reject="${msn.id}">отклонить</button>
             <button class="btn-success glow-btn" data-approve="${msn.id}">подтвердить</button>
@@ -1004,15 +1027,50 @@ function renderReview(){
 function renderRewards(){
   const m = me();
   const director = m.role==='director';
-  const rewards = state.rewards.filter(r=>!r.redeemedBy);
+  const available = state.rewards.filter(r=>rewardStatus(r)==='available');
+  const requested = state.rewards.filter(r=>rewardStatus(r)==='requested');
   const pts = director ? null : availablePoints(m.id);
+  const pending = director ? null : pendingRequestedCost(m.id);
   const agents = state.agents.filter(a=>a.role==='agent');
   return `
     <h1>награды</h1>
     ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
       <button class="btn-primary btn-block" style="margin-bottom:4px" id="newRewardBtn">+ вписать награду</button>
       <p class="btn-caption">например: "поход в кино" за 50 очков. агенты увидят это в своём списке наград</p>`
-      : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value">${pts}</div></div>`}
+      : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value">${pts}</div>
+          ${pending>0?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">ещё ${pending} очков в запросах, ждут подтверждения</div>`:''}
+        </div>`}
+
+    ${director && requested.length>0 ? `
+    <h2>запросы на награды</h2>
+    ${requested.map(r=>{
+      const agent = agentById(r.requestedBy);
+      return `
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+          <div class="seal-sm" style="${sealStyle(agent?agent.color:'#12C88E')}">${agent?initials(agent.name):'?'}</div>
+          <div>
+            <div class="mission-title" style="padding-right:0">${agent?escapeHtml(agent.name):'?'}</div>
+            <div class="mission-meta">запросил награду</div>
+          </div>
+        </div>
+        <div style="font-size:14px; margin-bottom:2px;">${escapeHtml(r.title)}</div>
+        <div class="mission-meta" style="margin-bottom:12px;">${r.cost} очков</div>
+        <div class="btn-row">
+          <button class="btn-danger-outline" data-decline-reward="${r.id}">отклонить</button>
+          <button class="btn-success glow-btn" data-confirm-reward="${r.id}">подтвердить выдачу</button>
+        </div>
+      </div>`;
+    }).join('')}` : ''}
+
+    ${!director && state.rewards.some(r=>rewardStatus(r)==='requested' && r.requestedBy===m.id) ? `
+    <h2>ваши запросы</h2>
+    ${state.rewards.filter(r=>rewardStatus(r)==='requested' && r.requestedBy===m.id).map(r=>`
+      <div class="reward-card" style="opacity:0.75">
+        <div class="reward-icon">◆</div>
+        <div style="flex:1"><div class="reward-title">${escapeHtml(r.title)}</div><div class="reward-cost">${r.cost} очков · ждём подтверждения от директора</div></div>
+      </div>
+    `).join('')}` : ''}
 
     ${director && agents.length>0 ? `
     <h2>баланс очков агентов</h2>
@@ -1031,9 +1089,9 @@ function renderRewards(){
     `).join('')}` : ''}
 
     <h2>список наград</h2>
-    ${rewards.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>наград пока нет</div></div>` :
-      rewards.map(r=>{
-        const canRedeem = !director && availablePoints(myAgentId) >= r.cost;
+    ${available.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>наград пока нет</div></div>` :
+      available.map(r=>{
+        const canRequest = !director && (availablePoints(myAgentId) - pendingRequestedCost(myAgentId)) >= r.cost;
         return `
         <div class="reward-card">
           <div class="reward-icon">◆</div>
@@ -1041,7 +1099,7 @@ function renderRewards(){
             <div class="reward-title">${escapeHtml(r.title)}</div>
             <div class="reward-cost">${r.cost} очков</div>
           </div>
-          ${!director ? `<button class="btn-ghost-sm" ${canRedeem?'':'disabled style="opacity:0.4"'} data-redeem="${r.id}">получить</button>` : `
+          ${!director ? `<button class="btn-ghost-sm" ${canRequest?'':'disabled style="opacity:0.4"'} data-request-reward="${r.id}">запросить</button>` : `
             <button class="btn-ghost-sm" data-edit-reward="${r.id}">изменить</button>
             <button class="btn-ghost-sm" data-delete-reward="${r.id}" style="border-color:var(--danger); color:var(--danger);">удалить</button>
           `}
@@ -1049,8 +1107,8 @@ function renderRewards(){
       }).join('')}
 
     ${!director ? `<h2>история</h2>
-      ${state.rewards.filter(r=>r.redeemedBy===myAgentId).length===0 ? `<div style="font-size:13px;color:var(--text-muted)">пока ничего не получено</div>` :
-        state.rewards.filter(r=>r.redeemedBy===myAgentId).map(r=>`
+      ${state.rewards.filter(r=>rewardStatus(r)==='redeemed' && r.redeemedBy===myAgentId).length===0 ? `<div style="font-size:13px;color:var(--text-muted)">пока ничего не получено</div>` :
+        state.rewards.filter(r=>rewardStatus(r)==='redeemed' && r.redeemedBy===myAgentId).map(r=>`
           <div class="reward-card" style="opacity:0.6"><div class="reward-icon">✓</div><div style="flex:1"><div class="reward-title">${escapeHtml(r.title)}</div><div class="reward-cost">получено · ${r.cost} очков</div></div></div>
         `).join('')}` : ''}
   `;
@@ -1106,10 +1164,14 @@ function renderModal(){
         <div class="modal-title">новая миссия</div>
         <label class="field-label">название задания</label>
         <input id="mTitle" placeholder="например: убрать комнату"/>
-        <label class="field-label">кому</label>
-        <select id="mAssignee">
-          ${agents.map(a=>`<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
-        </select>
+        <label class="field-label">кому (можно выбрать нескольких)</label>
+        ${agents.length===0 ? `<div style="font-size:13px;color:var(--text-muted);">сначала нужен хотя бы один агент</div>` :
+          agents.map(a=>`
+            <label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:14px;">
+              <input type="checkbox" class="mission-assignee-cb" value="${a.id}" style="width:auto;"/> ${escapeHtml(a.name)}
+            </label>
+          `).join('')}
+        <p class="btn-caption">если выбрать нескольких — это групповое задание, и очки получит каждый из них</p>
         <label class="field-label">очки за выполнение</label>
         <input id="mPoints" type="number" min="1" value="10"/>
         <label class="field-label">срок (необязательно)</label>
@@ -1156,7 +1218,7 @@ function renderModal(){
         <button class="btn-block" id="shareOptionsCopyAgain" data-code="${code}">просто скопировать ещё раз</button>
         <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modal.returnTo ? '← назад' : 'закрыть'}</button>
         </div>
       </div>
     </div>`;
@@ -1402,6 +1464,13 @@ function attachEvents(){
       if(msn){ msn.status='review'; await saveState(); render(); }
     };
   });
+  document.querySelectorAll('[data-retry-mission]').forEach(el=>{
+    el.onclick = async ()=>{
+      const id = el.getAttribute('data-retry-mission');
+      const msn = state.missions.find(x=>x.id===id);
+      if(msn){ msn.status='review'; msn.rejectReason=''; await saveState(); render(); }
+    };
+  });
   document.querySelectorAll('[data-delete-mission]').forEach(el=>{
     el.onclick = async ()=>{
       state.missions = state.missions.filter(x=>x.id!==el.getAttribute('data-delete-mission'));
@@ -1418,12 +1487,35 @@ function attachEvents(){
   document.querySelectorAll('[data-reject]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'reject', missionId: el.getAttribute('data-reject')}; render(); };
   });
-  document.querySelectorAll('[data-redeem]').forEach(el=>{
+  document.querySelectorAll('[data-request-reward]').forEach(el=>{
     el.onclick = async ()=>{
-      const id = el.getAttribute('data-redeem');
+      const id = el.getAttribute('data-request-reward');
       const r = state.rewards.find(x=>x.id===id);
-      if(r && availablePoints(myAgentId) >= r.cost){
-        r.redeemedBy = myAgentId;
+      if(r && (availablePoints(myAgentId) - pendingRequestedCost(myAgentId)) >= r.cost){
+        r.status = 'requested';
+        r.requestedBy = myAgentId;
+        await saveState(); render();
+      }
+    };
+  });
+  document.querySelectorAll('[data-confirm-reward]').forEach(el=>{
+    el.onclick = async ()=>{
+      const id = el.getAttribute('data-confirm-reward');
+      const r = state.rewards.find(x=>x.id===id);
+      if(r){
+        r.status = 'redeemed';
+        r.redeemedBy = r.requestedBy;
+        await saveState(); render();
+      }
+    };
+  });
+  document.querySelectorAll('[data-decline-reward]').forEach(el=>{
+    el.onclick = async ()=>{
+      const id = el.getAttribute('data-decline-reward');
+      const r = state.rewards.find(x=>x.id===id);
+      if(r){
+        r.status = 'available';
+        r.requestedBy = null;
         await saveState(); render();
       }
     };
@@ -1574,10 +1666,10 @@ function attachEvents(){
     const createMission = document.getElementById('modalCreateMission');
     if(createMission) createMission.onclick = async ()=>{
       const title = document.getElementById('mTitle').value.trim();
-      const assignedTo = document.getElementById('mAssignee').value;
+      const assignedTo = Array.from(document.querySelectorAll('.mission-assignee-cb:checked')).map(cb=>cb.value);
       const points = parseInt(document.getElementById('mPoints').value)||10;
       const deadline = document.getElementById('mDeadline').value.trim();
-      if(!title || !assignedTo) return;
+      if(!title || assignedTo.length===0) return;
       const msn = {id:uid(), title, assignedTo, points, deadline, status:'open', createdBy: myAgentId};
       state.missions.push(msn);
       state.messages.hq = state.messages.hq || [];
