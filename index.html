@@ -113,6 +113,9 @@
     width:100%; background:var(--panel-alt); border:1px solid var(--border-strong); color:var(--text);
     padding:11px 12px; border-radius:6px; font-size:14px; font-family:var(--sans); outline:none;
   }
+  input[type="checkbox"], input[type="radio"]{
+    width:18px; height:18px; padding:0; border-radius:4px; flex-shrink:0; accent-color:var(--accent);
+  }
   input::placeholder, textarea::placeholder{color:var(--text-muted);}
   input:focus, textarea:focus, select:focus{border-color:var(--accent);}
   label.field-label{display:block; font-size:11px; font-family:var(--mono); letter-spacing:0.8px; text-transform:uppercase; color:var(--text-muted); margin:14px 0 6px;}
@@ -1176,7 +1179,8 @@ function renderModal(){
         <input id="mPoints" type="number" min="1" value="10"/>
         <label class="field-label">срок (необязательно)</label>
         <input id="mDeadline" placeholder="например: суббота"/>
-        <div class="btn-row" style="margin-top:18px">
+        <div id="missionFormError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
           <button id="modalCancel">отмена</button>
           <button class="btn-primary" id="modalCreateMission">создать</button>
         </div>
@@ -1373,7 +1377,8 @@ function renderModal(){
         <input id="rTitle" placeholder="например: поход в кино" value="${editing ? escapeHtml(editing.title) : ''}"/>
         <label class="field-label">цена в очках</label>
         <input id="rCost" type="number" min="1" value="${editing ? editing.cost : 50}"/>
-        <div class="btn-row" style="margin-top:18px">
+        <div id="rewardFormError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
           <button id="modalCancel">отмена</button>
           <button class="btn-primary" id="modalCreateReward" data-reward-id="${editing ? editing.id : ''}">${editing ? 'сохранить' : 'добавить'}</button>
         </div>
@@ -1669,7 +1674,9 @@ function attachEvents(){
       const assignedTo = Array.from(document.querySelectorAll('.mission-assignee-cb:checked')).map(cb=>cb.value);
       const points = parseInt(document.getElementById('mPoints').value)||10;
       const deadline = document.getElementById('mDeadline').value.trim();
-      if(!title || assignedTo.length===0) return;
+      const errEl = document.getElementById('missionFormError');
+      if(!title){ if(errEl) errEl.textContent = 'впишите название задания'; return; }
+      if(assignedTo.length===0){ if(errEl) errEl.textContent = 'выберите хотя бы одного агента'; return; }
       const msn = {id:uid(), title, assignedTo, points, deadline, status:'open', createdBy: myAgentId};
       state.missions.push(msn);
       state.messages.hq = state.messages.hq || [];
@@ -1703,7 +1710,8 @@ function attachEvents(){
     if(createReward) createReward.onclick = async ()=>{
       const title = document.getElementById('rTitle').value.trim();
       const cost = parseInt(document.getElementById('rCost').value)||10;
-      if(!title) return;
+      const errEl = document.getElementById('rewardFormError');
+      if(!title){ if(errEl) errEl.textContent = 'впишите название награды'; return; }
       const editId = createReward.getAttribute('data-reward-id');
       if(editId){
         const r = state.rewards.find(x=>x.id===editId);
