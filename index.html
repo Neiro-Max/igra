@@ -630,6 +630,27 @@ function availablePoints(agentId){
   return earned - spent + adjusted;
 }
 
+function pointsHistory(agentId){
+  const entries = [];
+  state.missions.forEach(m=>{
+    if(m.status==='approved' && missionAssignees(m).includes(agentId)){
+      entries.push({ ts: m.approvedAt || 0, delta: m.points, label: `миссия: ${m.title}` });
+    }
+  });
+  state.rewards.forEach(r=>{
+    if(rewardStatus(r)==='redeemed' && r.redeemedBy===agentId){
+      entries.push({ ts: r.redeemedAt || 0, delta: -r.cost, label: `награда: ${r.title}` });
+    }
+  });
+  (state.adjustments||[]).forEach(a=>{
+    if(a.agentId===agentId){
+      entries.push({ ts: a.ts || 0, delta: a.delta, label: a.reason ? `корректировка: ${a.reason}` : 'ручная корректировка' });
+    }
+  });
+  entries.sort((a,b)=> b.ts - a.ts);
+  return entries;
+}
+
 function sealStyle(color){
   return `background:${color}22; color:${color};`;
 }
@@ -697,22 +718,79 @@ const ONBOARDING_SLIDES = [
   {
     icon: "◈",
     title: "Добро пожаловать в Секретный штаб",
-    text: "Это семейная игра-мессенджер. Вы — тайное агентство: у каждого свой позывной, а домашние дела превращаются в миссии."
+    text: "Это семейная игра-мессенджер. Вы — тайное агентство: у каждого свой позывной, а домашние дела превращаются в миссии.",
+    illustration: `<svg viewBox="0 0 260 160" width="100%" style="max-width:280px;">
+      <polygon points="130,20 175,45 175,95 130,120 85,95 85,45" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+      <polygon points="130,45 155,58 155,82 130,95 105,82 105,58" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
+      <path d="M118 68 q12 -14 24 0 q-12 20 -24 0 z" fill="var(--accent)"/>
+      <circle cx="130" cy="70" r="3" fill="var(--panel)"/>
+      <g stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="3 4">
+        <line x1="85" y1="70" x2="35" y2="35"/>
+        <line x1="175" y1="70" x2="225" y2="35"/>
+        <line x1="130" y1="120" x2="130" y2="148"/>
+      </g>
+      <polygon points="35,20 50,28 50,42 35,50 20,42 20,28" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <polygon points="225,20 240,28 240,42 225,50 210,42 210,28" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <polygon points="130,133 145,141 145,155 130,163 115,155 115,141" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5" transform="translate(0,-15)"/>
+    </svg>`
   },
   {
     icon: "✦",
     title: "Как работают миссии",
-    text: "Директор (родитель) создаёт миссию с наградой в очках. Агент (ребёнок) выполняет и отмечает готовность. Директор проверяет и подтверждает — только тогда очки начисляются."
+    text: "Директор (родитель) создаёт миссию с наградой в очках. Агент (ребёнок) выполняет и отмечает готовность. Директор проверяет и подтверждает — только тогда очки начисляются.",
+    illustration: `<svg viewBox="0 0 260 140" width="100%" style="max-width:280px;">
+      <rect x="10" y="45" width="60" height="50" rx="10" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <rect x="22" y="58" width="36" height="4" rx="2" fill="var(--text-muted)"/>
+      <rect x="22" y="68" width="26" height="4" rx="2" fill="var(--text-muted)"/>
+      <rect x="22" y="78" width="30" height="4" rx="2" fill="var(--text-muted)"/>
+      <line x1="80" y1="70" x2="105" y2="70" stroke="var(--border-strong)" stroke-width="2" stroke-dasharray="4 4"/>
+      <polygon points="105,70 98,66 98,74" fill="var(--border-strong)"/>
+      <circle cx="130" cy="70" r="28" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="2"/>
+      <path d="M118 70 l8 8 l16 -18" fill="none" stroke="var(--accent-ink)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="158" y1="70" x2="183" y2="70" stroke="var(--border-strong)" stroke-width="2" stroke-dasharray="4 4"/>
+      <polygon points="183,70 176,66 176,74" fill="var(--border-strong)"/>
+      <polygon points="220,50 227,64 242,66 231,76 234,91 220,83 206,91 209,76 198,66 213,64" fill="var(--amber)"/>
+    </svg>`
   },
   {
     icon: "◆",
     title: "Очки и награды",
-    text: "Очки не сгорают — можно копить на крупную награду или тратить сразу. Список наград вписывает Директор — от похода в кино до путешествия."
+    text: "Очки не сгорают — можно копить на крупную награду или тратить сразу. Список наград вписывает Директор — от похода в кино до путешествия.",
+    illustration: `<svg viewBox="0 0 260 150" width="100%" style="max-width:280px;">
+      <path d="M60 55 q0 -20 25 -20 h30 q25 0 25 20 v55 q0 15 -15 15 h-50 q-15 0 -15 -15 z" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="2"/>
+      <rect x="70" y="30" width="40" height="10" rx="4" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <circle cx="80" cy="75" r="5" fill="var(--amber)"/>
+      <circle cx="100" cy="65" r="5" fill="var(--accent)"/>
+      <circle cx="95" cy="95" r="5" fill="var(--violet)"/>
+      <circle cx="115" cy="85" r="5" fill="var(--amber)"/>
+      <line x1="130" y1="80" x2="155" y2="80" stroke="var(--border-strong)" stroke-width="2" stroke-dasharray="4 4"/>
+      <polygon points="155,80 148,76 148,84" fill="var(--border-strong)"/>
+      <rect x="165" y="60" width="55" height="45" rx="6" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="2"/>
+      <rect x="165" y="75" width="55" height="8" fill="var(--accent)"/>
+      <rect x="188" y="60" width="9" height="45" fill="var(--accent)"/>
+      <path d="M188 60 q-10 -18 -14 -8 q-2 8 14 8 z" fill="none" stroke="var(--accent-ink)" stroke-width="2"/>
+      <path d="M197 60 q10 -18 14 -8 q2 8 -14 8 z" fill="none" stroke="var(--accent-ink)" stroke-width="2"/>
+    </svg>`
   },
   {
     icon: "\u2726",
     title: "Штаб — это код",
-    text: "Каждая семья или группа — отдельный закрытый штаб со своим кодом. Один создаёт штаб и получает код, остальные вводят этот же код, чтобы присоединиться. Разные штабы никогда не видят данные друг друга."
+    text: "Каждая семья или группа — отдельный закрытый штаб со своим кодом. Один создаёт штаб и получает код, остальные вводят этот же код, чтобы присоединиться. Разные штабы никогда не видят данные друг друга.",
+    illustration: `<svg viewBox="0 0 260 150" width="100%" style="max-width:280px;">
+      <rect x="85" y="35" width="90" height="70" rx="12" fill="var(--panel-alt)" stroke="var(--accent)" stroke-width="2.5"/>
+      <rect x="105" y="55" width="50" height="16" rx="4" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="130" y="67" text-anchor="middle" font-family="monospace" font-size="10" font-weight="700" fill="var(--accent-ink)">X7K2QP</text>
+      <path d="M118 35 v-12 a12 12 0 0 1 24 0 v12" fill="none" stroke="var(--accent)" stroke-width="3"/>
+      <circle cx="130" cy="85" r="4" fill="var(--accent)"/>
+      <g stroke="var(--border-strong)" stroke-width="1.5" stroke-dasharray="3 4">
+        <line x1="85" y1="70" x2="35" y2="45"/>
+        <line x1="85" y1="90" x2="35" y2="105"/>
+        <line x1="175" y1="70" x2="225" y2="45"/>
+      </g>
+      <circle cx="30" cy="40" r="14" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <circle cx="30" cy="110" r="14" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5"/>
+      <circle cx="228" cy="40" r="14" fill="var(--panel-alt)" stroke="var(--border-strong)" stroke-width="1.5"/>
+    </svg>`
   }
 ];
 
@@ -723,9 +801,7 @@ function renderOnboarding(){
   return `
   <div class="screen" style="padding-bottom:40px; display:flex; flex-direction:column; min-height:100vh;">
     <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
-      <div class="brand-mark spin-glow" style="width:70px; height:70px; margin-bottom:24px;">
-        <i style="font-size:28px;">${s.icon}</i>
-      </div>
+      <div style="margin-bottom:20px;">${s.illustration}</div>
       <h1 style="font-size:22px; margin-bottom:14px;">${s.title}</h1>
       <p class="lead" style="max-width:420px;">${s.text}</p>
     </div>
@@ -974,6 +1050,9 @@ function missionCardHtml(msn, showDelete){
   const statusClass = {open:'status-open', review:'status-review', approved:'status-approved', rejected:'status-rejected'}[msn.status];
   const canMarkDone = !isDirector() && missionAssignees(msn).includes(myAgentId) && msn.status==='open';
   const canRetry = !isDirector() && missionAssignees(msn).includes(myAgentId) && msn.status==='rejected';
+  const hasProposal = msn.proposalStatus === 'pending';
+  const canPropose = !isDirector() && missionAssignees(msn).includes(myAgentId) && msn.status==='open' && !hasProposal;
+  const proposer = hasProposal ? agentById(msn.proposedBy) : null;
   return `
   <div class="mission-card st-${msn.status}">
     <div class="mission-tab">${msn.points} О</div>
@@ -981,7 +1060,18 @@ function missionCardHtml(msn, showDelete){
     <div class="mission-meta">${escapeHtml(missionAssigneeNames(msn))} ${msn.deadline?'· срок: '+escapeHtml(msn.deadline):''}</div>
     <div><span class="status-pill ${statusClass}">${statusLabel}</span></div>
     ${msn.status==='rejected' && msn.rejectReason ? `<div style="font-size:12px;color:var(--danger);margin-top:6px;">причина: ${escapeHtml(msn.rejectReason)}</div>` : ''}
+    ${hasProposal ? `
+      <div style="background:var(--amber-tint); border-radius:8px; padding:10px; margin-top:10px;">
+        <div style="font-size:13px; font-weight:500;">${isDirector() ? `${proposer?escapeHtml(proposer.name):'?'} предлагает ${msn.proposedPoints} очков вместо ${msn.points}` : `ждём решения: предложено ${msn.proposedPoints} очков вместо ${msn.points}`}</div>
+        ${msn.proposalReason ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">причина: ${escapeHtml(msn.proposalReason)}</div>` : ''}
+        ${isDirector() ? `
+          <div class="btn-row" style="margin-top:8px;">
+            <button class="btn-danger-outline" data-decline-proposal="${msn.id}">отклонить</button>
+            <button class="btn-success" data-accept-proposal="${msn.id}">согласиться</button>
+          </div>` : ''}
+      </div>` : ''}
     ${canMarkDone ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-mark-done="${msn.id}">отметить выполненным</button>` : ''}
+    ${canPropose ? `<button class="btn-ghost-sm btn-block" style="margin-top:8px" data-negotiate-mission="${msn.id}">💬 предложить другую награду</button>` : ''}
     ${canRetry ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-retry-mission="${msn.id}">исправить и отправить снова</button>` : ''}
     ${showDelete ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}">удалить миссию</button>` : ''}
   </div>`;
@@ -1046,6 +1136,7 @@ function renderRewards(){
       <p class="btn-caption">например: "поход в кино" за 50 очков. агенты увидят это в своём списке наград</p>`
       : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value">${pts}</div>
           ${pending>0?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">ещё ${pending} очков в запросах, ждут подтверждения</div>`:''}
+          <button class="btn-ghost-sm" style="margin-top:10px;" data-show-history="${m.id}">📜 история начислений и трат</button>
         </div>`}
 
     ${director && requested.length>0 ? `
@@ -1091,7 +1182,10 @@ function renderRewards(){
             <div style="font-size:12px; color:var(--text-muted);">${availablePoints(a.id)} очков</div>
           </div>
         </div>
-        <button class="btn-ghost-sm" data-adjust-points="${a.id}">исправить баланс</button>
+        <div class="btn-row" style="gap:6px;">
+          <button class="btn-ghost-sm" data-show-history="${a.id}">📜 история</button>
+          <button class="btn-ghost-sm" data-adjust-points="${a.id}">исправить баланс</button>
+        </div>
       </div>
     `).join('')}` : ''}
 
@@ -1461,6 +1555,47 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'pointsHistory'){
+    const agent = agentById(modal.agentId);
+    const history = pointsHistory(modal.agentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">история очков — ${escapeHtml(agent?agent.name:'')}</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">текущий баланс: ${availablePoints(modal.agentId)} очков</p>
+        ${history.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>операций пока не было</div></div>` :
+          history.map(h=>`
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border);">
+              <div>
+                <div style="font-size:14px;">${escapeHtml(h.label)}</div>
+                <div style="font-size:11px; color:var(--text-muted); font-family:var(--mono);">${h.ts ? new Date(h.ts).toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'дата неизвестна'}</div>
+              </div>
+              <div style="font-family:var(--mono); font-weight:700; font-size:15px; color:${h.delta>=0?'var(--accent-ink)':'var(--danger)'};">${h.delta>=0?'+':''}${h.delta}</div>
+            </div>
+          `).join('')}
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'negotiateMission'){
+    const msn = state.missions.find(x=>x.id===modal.missionId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">предложить другую награду</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">сейчас за «${escapeHtml(msn?msn.title:'')}» — ${msn?msn.points:0} очков</p>
+        <label class="field-label">сколько очков предложить</label>
+        <input id="proposedPoints" type="number" min="1" value="${msn?msn.points:10}"/>
+        <label class="field-label">почему (необязательно)</label>
+        <input id="proposalReason" placeholder="например: это займёт больше времени, чем кажется"/>
+        <div id="negotiateFormError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalSendProposal" data-mission-id="${modal.missionId}">отправить директору</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'adjustPoints'){
     const agent = agentById(modal.agentId);
     return `<div class="modal-overlay" id="modalOverlay">
@@ -1545,6 +1680,34 @@ function attachEvents(){
       if(msn){ msn.status='review'; await saveState(); render(); }
     };
   });
+  document.querySelectorAll('[data-negotiate-mission]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'negotiateMission', missionId: el.getAttribute('data-negotiate-mission')}; render(); };
+  });
+  document.querySelectorAll('[data-accept-proposal]').forEach(el=>{
+    el.onclick = async ()=>{
+      const msn = state.missions.find(x=>x.id===el.getAttribute('data-accept-proposal'));
+      if(msn){
+        msn.points = msn.proposedPoints;
+        msn.proposalStatus = null;
+        msn.proposedPoints = null;
+        msn.proposalReason = '';
+        msn.proposedBy = null;
+        await saveState(); render();
+      }
+    };
+  });
+  document.querySelectorAll('[data-decline-proposal]').forEach(el=>{
+    el.onclick = async ()=>{
+      const msn = state.missions.find(x=>x.id===el.getAttribute('data-decline-proposal'));
+      if(msn){
+        msn.proposalStatus = null;
+        msn.proposedPoints = null;
+        msn.proposalReason = '';
+        msn.proposedBy = null;
+        await saveState(); render();
+      }
+    };
+  });
   document.querySelectorAll('[data-retry-mission]').forEach(el=>{
     el.onclick = async ()=>{
       const id = el.getAttribute('data-retry-mission');
@@ -1562,7 +1725,7 @@ function attachEvents(){
     el.onclick = async ()=>{
       const id = el.getAttribute('data-approve');
       const msn = state.missions.find(x=>x.id===id);
-      if(msn){ msn.status='approved'; await saveState(); render(); }
+      if(msn){ msn.status='approved'; msn.approvedAt = Date.now(); await saveState(); render(); }
     };
   });
   document.querySelectorAll('[data-reject]').forEach(el=>{
@@ -1586,6 +1749,7 @@ function attachEvents(){
       if(r){
         r.status = 'redeemed';
         r.redeemedBy = r.requestedBy;
+        r.redeemedAt = Date.now();
         await saveState(); render();
       }
     };
@@ -1606,6 +1770,9 @@ function attachEvents(){
   });
   document.querySelectorAll('[data-adjust-points]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'adjustPoints', agentId: el.getAttribute('data-adjust-points')}; render(); };
+  });
+  document.querySelectorAll('[data-show-history]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'pointsHistory', agentId: el.getAttribute('data-show-history')}; render(); };
   });
   document.querySelectorAll('[data-delete-reward]').forEach(el=>{
     el.onclick = async ()=>{
@@ -1755,6 +1922,24 @@ function attachEvents(){
       modal = null;
       view = 'room';
       render();
+    };
+
+    const sendProposal = document.getElementById('modalSendProposal');
+    if(sendProposal) sendProposal.onclick = async ()=>{
+      const missionId = sendProposal.getAttribute('data-mission-id');
+      const points = parseInt(document.getElementById('proposedPoints').value);
+      const reason = document.getElementById('proposalReason').value.trim();
+      const errEl = document.getElementById('negotiateFormError');
+      if(!points || points<1){ if(errEl) errEl.textContent = 'впишите количество очков'; return; }
+      const msn = state.missions.find(x=>x.id===missionId);
+      if(msn){
+        msn.proposedPoints = points;
+        msn.proposalReason = reason;
+        msn.proposalStatus = 'pending';
+        msn.proposedBy = myAgentId;
+        await saveState();
+      }
+      modal = null; render();
     };
 
     const createMission = document.getElementById('modalCreateMission');
