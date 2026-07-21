@@ -50,6 +50,16 @@
     animation: toastIn .3s ease-out; text-align:center;
   }
   .toast-item.toast-out{ animation: toastOut .35s ease-in forwards; }
+  .safe-slot{
+    width:44px; height:52px; border:2px solid var(--border-strong); border-radius:8px; background:var(--panel-alt);
+    display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:22px; font-weight:700;
+  }
+  .safe-key{
+    padding:14px 0; border-radius:8px; background:var(--panel-alt); border:1px solid var(--border-strong);
+    font-family:var(--mono); font-size:17px; font-weight:700; color:var(--text);
+  }
+  .safe-key:active{ background:var(--accent-tint); border-color:var(--accent); }
+
   @keyframes toastIn{ from{ opacity:0; transform:translateY(-16px) scale(0.95);} to{ opacity:1; transform:translateY(0) scale(1);} }
   @keyframes toastOut{ from{ opacity:1; transform:translateY(0) scale(1);} to{ opacity:0; transform:translateY(-12px) scale(0.95);} }
 
@@ -295,6 +305,39 @@ function showError(msg){
   const el = document.getElementById('errorBanner');
   if(el){ el.textContent = 'Ошибка: ' + msg; el.style.display = 'block'; }
 }
+let safeGame = null;
+let safeGameTimerHandle = null;
+const SAFE_GAME_SECONDS = 60;
+function startSafeGame(missionId){
+  if(safeGameTimerHandle){ clearInterval(safeGameTimerHandle); safeGameTimerHandle = null; }
+  const secret = [0,0,0,0].map(()=>Math.floor(Math.random()*10));
+  safeGame = { missionId, secret, guesses: [], currentInput: [], won:false, exploded:false, bonus:null, deadline: Date.now() + SAFE_GAME_SECONDS*1000 };
+  safeGameTimerHandle = setInterval(()=>{
+    if(!safeGame || safeGame.won || safeGame.exploded){ clearInterval(safeGameTimerHandle); safeGameTimerHandle = null; return; }
+    if(Date.now() >= safeGame.deadline){
+      safeGame.exploded = true;
+      clearInterval(safeGameTimerHandle); safeGameTimerHandle = null;
+    }
+    if(modal && modal.type==='safeGame') render();
+  }, 1000);
+}
+function safeGameFeedback(guess, secret){
+  let black = 0;
+  const secretRemaining = [];
+  const guessRemaining = [];
+  for(let i=0;i<4;i++){
+    if(guess[i]===secret[i]){ black++; }
+    else { secretRemaining.push(secret[i]); guessRemaining.push(guess[i]); }
+  }
+  let white = 0;
+  const used = secretRemaining.map(()=>false);
+  guessRemaining.forEach(g=>{
+    const idx = secretRemaining.findIndex((s,i)=>s===g && !used[i]);
+    if(idx!==-1){ used[idx]=true; white++; }
+  });
+  return { black, white };
+}
+
 function showToast(text){
   const container = document.getElementById('toastContainer');
   if(!container) return;
@@ -373,7 +416,7 @@ async function copyCodeToClipboard(code, feedbackEl){
     }catch(e){ ok = false; }
   }
   if(feedbackEl){
-    feedbackEl.textContent = ok ? 'скопировано!' : 'не удалось скопировать — выделите код вручную';
+    feedbackEl.textContent = ok ? 'скопировано!' : 'не удалось скопировать — выделите номер вручную';
     setTimeout(()=>{ feedbackEl.textContent=''; }, 2500);
   }
 }
@@ -850,8 +893,8 @@ const ONBOARDING_SLIDES = [
   },
   {
     icon: "\u2726",
-    title: "Штаб — это код",
-    text: "Каждая семья или группа — отдельный закрытый штаб со своим кодом. Один создаёт штаб и получает код, остальные вводят этот же код, чтобы присоединиться. Разные штабы никогда не видят данные друг друга.",
+    title: "Штаб — это личный номер",
+    text: "Каждая семья или группа — отдельный закрытый штаб со своим личным номером. Один создаёт штаб и получает номер, остальные вводят этот же номер, чтобы присоединиться. Разные штабы никогда не видят данные друг друга.",
     illustration: `<svg viewBox="0 0 260 150" width="100%" style="max-width:280px;">
       <rect x="85" y="35" width="90" height="70" rx="12" fill="var(--panel-alt)" stroke="var(--accent)" stroke-width="2.5"/>
       <rect x="105" y="55" width="50" height="16" rx="4" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
@@ -925,20 +968,20 @@ function renderRoomScreen(){
       </div>
     </div>
     <h1>ваш штаб</h1>
-    <p class="lead">каждый штаб — это отдельная закрытая комната. создайте новый штаб для своей семьи, или введите код, если штаб уже существует.</p>
+    <p class="lead">каждый штаб — это отдельная закрытая комната. создайте новый штаб и получите свой личный номер, или введите номер, если штаб уже существует.</p>
     <button class="btn-ghost-sm" id="showOnboardingBtn" style="margin-bottom:14px;">не понимаете, что это? посмотреть инструкцию →</button>
 
     <h2>новый штаб</h2>
     <button class="btn-primary btn-block" id="createRoomBtn">создать новый штаб</button>
-    <p class="btn-caption">выберите это, если вы первый из семьи — получите уникальный код, который потом передадите остальным</p>
+    <p class="btn-caption">выберите это, если вы первый из семьи — получите свой личный номер, который потом передадите остальным</p>
 
-    <h2>уже есть код</h2>
-    <label class="field-label">код штаба</label>
+    <h2>уже есть номер</h2>
+    <label class="field-label">личный номер</label>
     <input id="joinRoomCode" placeholder="например: X7K2QP" maxlength="8" style="text-transform:uppercase;"/>
-    <p class="btn-caption" style="margin-top:6px;">впишите сюда код, который вам прислал создатель штаба (6 букв/цифр)</p>
-    <button class="btn-block" style="margin-top:12px" id="joinRoomBtn">войти по коду</button>
+    <p class="btn-caption" style="margin-top:6px;">впишите сюда личный номер, который вам прислал создатель штаба (6 букв/цифр)</p>
+    <button class="btn-block" style="margin-top:12px" id="joinRoomBtn">войти по номеру</button>
     <div id="joinRoomError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
-    <p class="btn-caption">выберите это, если кто-то из семьи уже создал штаб и прислал вам код</p>
+    <p class="btn-caption">выберите это, если кто-то из семьи уже создал штаб и прислал вам личный номер</p>
   </div>`;
 }
 
@@ -957,18 +1000,18 @@ function attachRoomEvents(){
     const input = document.getElementById('joinRoomCode');
     const code = input.value.trim().toUpperCase();
     const errEl = document.getElementById('joinRoomError');
-    if(!code){ if(errEl) errEl.textContent = 'впишите код штаба'; return; }
-    if(errEl) errEl.textContent = 'проверяем код...';
+    if(!code){ if(errEl) errEl.textContent = 'впишите личный номер'; return; }
+    if(errEl) errEl.textContent = 'проверяем номер...';
     joinBtn.disabled = true;
     try{
       const snap = await db.ref('rooms/'+code+'/appState').once('value');
       if(!snap.exists()){
-        if(errEl) errEl.textContent = 'штаб с таким кодом не найден. проверьте код и попробуйте снова';
+        if(errEl) errEl.textContent = 'штаб с таким номером не найден. проверьте номер и попробуйте снова';
         joinBtn.disabled = false;
         return;
       }
     }catch(e){
-      if(errEl) errEl.textContent = 'не удалось проверить код: ' + e.message;
+      if(errEl) errEl.textContent = 'не удалось проверить номер: ' + e.message;
       joinBtn.disabled = false;
       return;
     }
@@ -1068,7 +1111,7 @@ function renderHome(){
       <div class="brand-mark spin-glow"><i>SHQ</i></div>
       <div style="flex:1">
         <div class="brand-title">секретный штаб</div>
-        <div class="brand-sub">${m.role==='director'?'директор':'агент'} · ${escapeHtml(m.name)} · штаб: ${roomId}</div>
+        <div class="brand-sub">${m.role==='director'?'директор':'агент'} · ${escapeHtml(m.name)} · номер: ${roomId}</div>
       </div>
       <button class="theme-btn" data-open-rules="1" aria-label="правила игры" style="margin-right:6px;">📖</button>
       <button class="theme-btn" data-open-theme="1" aria-label="сменить цвет темы">🎨 цвет</button>
@@ -1169,6 +1212,7 @@ function missionCardHtml(msn, showDelete){
   const hasProposal = msn.proposalStatus === 'pending';
   const canPropose = !isDirector() && missionAssignees(msn).includes(myAgentId) && msn.status==='open' && !hasProposal;
   const proposer = hasProposal ? agentById(msn.proposedBy) : null;
+  const canPlayBonus = !isDirector() && missionAssignees(msn).includes(myAgentId) && msn.status==='approved' && msn.bonusAvailable && !msn.bonusPlayed;
   return `
   <div class="mission-card st-${msn.status}">
     <div class="mission-tab">${msn.points} О</div>
@@ -1189,6 +1233,7 @@ function missionCardHtml(msn, showDelete){
     ${canMarkDone ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-mark-done="${msn.id}">отметить выполненным</button>` : ''}
     ${canPropose ? `<button class="btn-ghost-sm btn-block" style="margin-top:8px" data-negotiate-mission="${msn.id}">💬 предложить другую награду</button>` : ''}
     ${canRetry ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-retry-mission="${msn.id}">исправить и отправить снова</button>` : ''}
+    ${canPlayBonus ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-play-safe="${msn.id}">🔓 взломать сейф — бонусные очки!</button>` : ''}
     ${showDelete && msn.status!=='approved' ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}">удалить миссию</button>` : ''}
     ${showDelete && msn.status==='approved' ? `<div class="btn-caption" style="margin-top:8px; margin-bottom:0;">подтверждённое задание нельзя удалить — очки уже в истории агента</div>` : ''}
   </div>`;
@@ -1427,11 +1472,11 @@ function renderModal(){
   }
   if(modal.type === 'shareOptions'){
     const code = modal.code;
-    const text = encodeURIComponent(`Присоединяйся к нашему секретному штабу! Код: ${code}`);
+    const text = encodeURIComponent(`Присоединяйся к нашему секретному штабу! Личный номер: ${code}`);
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
-        <div class="modal-title">отправить код</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите, куда отправить — код уже скопирован на всякий случай</p>
+        <div class="modal-title">отправить личный номер</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите, куда отправить — номер уже скопирован на всякий случай</p>
         <a href="sms:?body=${text}" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
           <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">📱</div>
           <div class="choice-name">СМС</div>
@@ -1452,6 +1497,67 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'safeGame'){
+    if(!safeGame || safeGame.missionId !== modal.missionId){ startSafeGame(modal.missionId); }
+    const msn = state.missions.find(x=>x.id===modal.missionId);
+    if(safeGame.won){
+      return `<div class="modal-overlay" id="modalOverlay">
+        <div class="modal-sheet" style="text-align:center;">
+          <div style="font-size:44px; margin-bottom:8px;">🔓</div>
+          <div class="modal-title">сейф взломан!</div>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">код разгадан за ${safeGame.guesses.length} ${safeGame.guesses.length===1?'попытку':'попыток'}</p>
+          <div class="id-card" style="text-align:center;">
+            <div class="id-card-label">бонус</div>
+            <div style="font-family:var(--mono); font-size:36px; font-weight:700; color:var(--accent-ink); margin-top:6px;">+${safeGame.bonus}</div>
+          </div>
+          <button class="btn-primary btn-block glow-btn" style="margin-top:18px" id="claimSafeBonus">забрать бонус →</button>
+        </div>
+      </div>`;
+    }
+    if(safeGame.exploded){
+      return `<div class="modal-overlay" id="modalOverlay">
+        <div class="modal-sheet" style="text-align:center;">
+          <div style="font-size:44px; margin-bottom:8px;">💥</div>
+          <div class="modal-title">время вышло!</div>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">сейф самоуничтожился — не успели разгадать код за 60 секунд. можно попробовать ещё раз с новым кодом</p>
+          <div class="btn-row">
+            <button id="modalCancel">закрыть</button>
+            <button class="btn-primary glow-btn" id="safeRetry">попробовать снова</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    const secondsLeft = Math.max(0, Math.ceil((safeGame.deadline - Date.now())/1000));
+    const slots = [0,1,2,3].map(i=>`<div class="safe-slot">${safeGame.currentInput[i]!==undefined?safeGame.currentInput[i]:''}</div>`).join('');
+    const keypad = [0,1,2,3,4,5,6,7,8,9].map(n=>`<button class="safe-key" data-safe-digit="${n}">${n}</button>`).join('');
+    const history = safeGame.guesses.slice().reverse().map(g=>`
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-top:1px solid var(--border);">
+        <div style="font-family:var(--mono); font-size:15px; letter-spacing:3px;">${g.guess.join(' ')}</div>
+        <div style="font-family:var(--mono); font-size:13px;">
+          <span style="color:var(--accent-ink);">${'●'.repeat(g.black)}</span><span style="color:var(--text-muted);">${'○'.repeat(g.white)}</span>
+        </div>
+      </div>`).join('');
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div class="modal-title" style="margin-bottom:0;">🔓 взлом сейфа</div>
+          <div style="font-family:var(--mono); font-size:18px; font-weight:700; color:${secondsLeft<=10?'var(--danger)':'var(--accent-ink)'};">⏱ ${secondsLeft} сек</div>
+        </div>
+        <p style="font-size:13px; color:var(--text-secondary); margin:8px 0 4px;">бонус за миссию «${escapeHtml(msn?msn.title:'')}»</p>
+        <p class="btn-caption" style="margin-top:0;">код каждый раз новый — 4 цифры. ● — цифра угадана и стоит на месте, ○ — цифра есть, но не там</p>
+        <div style="display:flex; gap:8px; justify-content:center; margin:14px 0;">${slots}</div>
+        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px;">${keypad}</div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button id="safeBackspace">⌫ стереть</button>
+          <button class="btn-primary" id="safeSubmit" ${safeGame.currentInput.length<4?'disabled style="opacity:0.4"':''}>проверить</button>
+        </div>
+        ${history ? `<div style="margin-top:16px;">${history}</div>` : ''}
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть попытку</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDeleteRoom'){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
@@ -1459,7 +1565,7 @@ function renderModal(){
         <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
           все агенты, миссии, награды и переписка этого штаба будут удалены безвозвратно у всех участников. это нельзя отменить.
         </p>
-        <label class="field-label">чтобы подтвердить, введите код штаба</label>
+        <label class="field-label">чтобы подтвердить, введите личный номер</label>
         <input id="confirmRoomCodeInput" placeholder="${roomId}" style="text-transform:uppercase;"/>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">отмена</button>
@@ -1483,7 +1589,7 @@ function renderModal(){
           </div>
           <div class="id-card-label">роль</div>
           <div style="font-size:14px; margin-top:2px;">${m.role==='director'?'директор (родитель)':'агент (ребёнок)'}</div>
-          <div class="id-card-label" style="margin-top:14px;">код штаба</div>
+          <div class="id-card-label" style="margin-top:14px;">личный номер</div>
           <div style="font-family:var(--mono); font-size:16px; letter-spacing:2px; color:var(--accent-ink); margin-top:2px; user-select:text; -webkit-user-select:text;">${roomId}</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn-ghost-sm" id="copyRoomCodeBtn" data-code="${roomId}">копировать</button>
@@ -1524,14 +1630,14 @@ function renderModal(){
       <div class="modal-sheet">
         <div class="modal-title">штаб создан</div>
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
-          сохраните этот код — он понадобится всем членам семьи, чтобы присоединиться к этому же штабу
+          сохраните этот личный номер — он понадобится всем членам семьи, чтобы присоединиться к этому же штабу
         </p>
         <div class="id-card" style="text-align:center; margin-top:0;">
-          <div class="id-card-label">код штаба</div>
+          <div class="id-card-label">личный номер</div>
           <div style="font-family:var(--mono); font-size:32px; font-weight:700; letter-spacing:4px; color:var(--accent-ink); margin-top:8px; user-select:text; -webkit-user-select:text;">${modal.code}</div>
         </div>
         <div class="btn-row" style="margin-top:14px">
-          <button id="copyRoomCodeBtn" data-code="${modal.code}">скопировать код</button>
+          <button id="copyRoomCodeBtn" data-code="${modal.code}">скопировать номер</button>
           <button id="shareRoomCodeBtn" data-code="${modal.code}" class="btn-primary">отправить →</button>
         </div>
         <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
@@ -1649,7 +1755,7 @@ function renderModal(){
       ['Личные чаты', 'нужно одобрение того, кому пишете — это защита от нежелательного общения'],
       ['Группы', 'создаются сразу, без одобрения — как обычный групповой чат'],
       ['Директор', 'видит все каналы и все задания, может исправить баланс очков вручную при ошибке'],
-      ['Код штаба', 'приватный — его знают только члены вашей семьи. не публикуйте его где попало']
+      ['Личный номер', 'приватный — его знают только члены вашей семьи. не публикуйте его где попало']
     ];
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
@@ -1921,6 +2027,14 @@ function attachEvents(){
       }
     };
   });
+  document.querySelectorAll('[data-play-safe]').forEach(el=>{
+    el.onclick = ()=>{
+      const missionId = el.getAttribute('data-play-safe');
+      startSafeGame(missionId);
+      modal = {type:'safeGame', missionId};
+      render();
+    };
+  });
   document.querySelectorAll('[data-retry-mission]').forEach(el=>{
     el.onclick = async ()=>{
       const id = el.getAttribute('data-retry-mission');
@@ -1941,7 +2055,7 @@ function attachEvents(){
     el.onclick = async ()=>{
       const id = el.getAttribute('data-approve');
       const msn = state.missions.find(x=>x.id===id);
-      if(msn){ msn.status='approved'; msn.approvedAt = Date.now(); await saveState(); render(); }
+      if(msn){ msn.status='approved'; msn.approvedAt = Date.now(); msn.bonusAvailable = true; await saveState(); render(); }
     };
   });
   document.querySelectorAll('[data-reject]').forEach(el=>{
@@ -2202,6 +2316,49 @@ function attachEvents(){
       if(msn){ msn.status='rejected'; msn.rejectReason = reason; }
       await saveState();
       modal=null; render();
+    };
+
+    document.querySelectorAll('[data-safe-digit]').forEach(el=>{
+      el.onclick = ()=>{
+        if(!safeGame || safeGame.currentInput.length>=4) return;
+        safeGame.currentInput.push(parseInt(el.getAttribute('data-safe-digit')));
+        render();
+      };
+    });
+    const safeBackspace = document.getElementById('safeBackspace');
+    if(safeBackspace) safeBackspace.onclick = ()=>{
+      if(safeGame) safeGame.currentInput.pop();
+      render();
+    };
+    const safeSubmit = document.getElementById('safeSubmit');
+    if(safeSubmit) safeSubmit.onclick = async ()=>{
+      if(!safeGame || safeGame.currentInput.length<4) return;
+      const guess = safeGame.currentInput.slice();
+      const fb = safeGameFeedback(guess, safeGame.secret);
+      safeGame.guesses.push({ guess, black: fb.black, white: fb.white });
+      safeGame.currentInput = [];
+      if(fb.black === 4){
+        safeGame.won = true;
+        safeGame.bonus = 200;
+        const msn = state.missions.find(x=>x.id===safeGame.missionId);
+        if(msn) msn.bonusPlayed = true;
+        state.adjustments = state.adjustments || [];
+        state.adjustments.push({ id:uid(), agentId: myAgentId, delta: safeGame.bonus, reason: `бонус за взлом сейфа: ${msn?msn.title:''}`, ts: Date.now() });
+        await saveState();
+      }
+      render();
+    };
+    const claimSafeBonus = document.getElementById('claimSafeBonus');
+    if(claimSafeBonus) claimSafeBonus.onclick = ()=>{
+      if(safeGameTimerHandle){ clearInterval(safeGameTimerHandle); safeGameTimerHandle=null; }
+      safeGame = null;
+      modal = null;
+      render();
+    };
+    const safeRetry = document.getElementById('safeRetry');
+    if(safeRetry) safeRetry.onclick = ()=>{
+      startSafeGame(modal.missionId);
+      render();
     };
 
     const applyAdjust = document.getElementById('modalApplyAdjust');
