@@ -231,6 +231,8 @@
   .msg-out p{color:var(--accent-ink);}
   .msg-text{font-size:14px;}
   .msg-meta{font-size:10px; color:var(--text-muted); font-family:var(--mono); margin-top:3px;}
+  .msg-action-btn{ background:none; border:none; padding:0 2px; font-size:11px; color:var(--text-muted); cursor:pointer; }
+  .msg-action-btn:active{ color:var(--accent); }
   .msg-sender{font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text-secondary); margin-bottom:2px;}
   .chat-input-row{display:flex; gap:8px; align-items:center; border-top:1px solid var(--border); padding-top:12px; margin-top:auto;}
   .chat-input-row input{flex:1;}
@@ -1277,7 +1279,11 @@ function renderChat(){
           return `<div class="${mine?'msg-out':'msg-in'}">
             ${!mine?`<div class="msg-sender">${sender?escapeHtml(sender.name):'?'}</div>`:''}
             <div class="msg-text">${escapeHtml(msg.text)}</div>
-            <div class="msg-meta">${msg.time}</div>
+            <div class="msg-meta" style="display:flex; align-items:center; gap:6px;">
+              <span>${msg.time}${msg.edited?' · изменено':''}</span>
+              ${mine ? `<button class="msg-action-btn" data-edit-msg="${msg.id}" aria-label="изменить">✎</button>` : ''}
+              ${(mine || isDirector()) ? `<button class="msg-action-btn" data-delete-msg="${msg.id}" aria-label="удалить">✕</button>` : ''}
+            </div>
           </div>`;
         }).join('')}
     </div>
@@ -1440,6 +1446,32 @@ function renderModal(){
         </div>
         <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
         <button class="btn-block" style="margin-top:8px" id="modalRoomContinue">продолжить →</button>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'editMessage'){
+    const msgs = state.messages[modal.channelId] || [];
+    const msg = msgs.find(x=>x.id===modal.msgId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">изменить сообщение</div>
+        <textarea id="editMsgText" rows="3">${msg?escapeHtml(msg.text):''}</textarea>
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalSaveMessageEdit">сохранить</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'confirmDeleteMessage'){
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">удалить сообщение?</div>
+        <p style="font-size:14px; color:var(--text-secondary);">это нельзя отменить.</p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmDeleteMessage">удалить</button>
+        </div>
       </div>
     </div>`;
   }
@@ -1908,11 +1940,36 @@ function attachEvents(){
     inputEl.onkeydown = (e)=>{ if(e.key==='Enter') doSend(); };
     inputEl.focus();
   }
+  document.querySelectorAll('[data-edit-msg]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'editMessage', channelId: activeChannelId, msgId: el.getAttribute('data-edit-msg')}; render(); };
+  });
+  document.querySelectorAll('[data-delete-msg]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'confirmDeleteMessage', channelId: activeChannelId, msgId: el.getAttribute('data-delete-msg')}; render(); };
+  });
 
   const overlay = document.getElementById('modalOverlay');
   if(overlay){
     const cancel = document.getElementById('modalCancel');
     if(cancel) cancel.onclick = ()=>{ modal = (modal && modal.returnTo) || null; render(); };
+
+    const saveMsgEdit = document.getElementById('modalSaveMessageEdit');
+    if(saveMsgEdit) saveMsgEdit.onclick = async ()=>{
+      const newText = document.getElementById('editMsgText').value.trim();
+      if(!newText){ modal=null; render(); return; }
+      const msgs = state.messages[modal.channelId] || [];
+      const msg = msgs.find(x=>x.id===modal.msgId);
+      if(msg){ msg.text = newText; msg.edited = true; }
+      await saveState();
+      modal=null; render();
+      setTimeout(scrollChatBottom,0);
+    };
+
+    const confirmDeleteMsg = document.getElementById('modalConfirmDeleteMessage');
+    if(confirmDeleteMsg) confirmDeleteMsg.onclick = async ()=>{
+      state.messages[modal.channelId] = (state.messages[modal.channelId]||[]).filter(x=>x.id!==modal.msgId);
+      await saveState();
+      modal=null; render();
+    };
 
     document.querySelectorAll('[data-pick-theme]').forEach(el=>{
       el.onclick = async ()=>{
