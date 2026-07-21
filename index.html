@@ -45,17 +45,17 @@
     .marquee-track{ animation: marqueeScroll 16s linear infinite; }
   }
   @keyframes spinGlow{
-    0%{ transform:rotate(0deg); box-shadow:0 0 8px 1px var(--glow), 0 0 0px 0px var(--glow); }
-    50%{ box-shadow:0 0 16px 4px var(--glow), 0 0 2px 1px var(--glow); }
-    100%{ transform:rotate(360deg); box-shadow:0 0 8px 1px var(--glow), 0 0 0px 0px var(--glow); }
+    0%{ transform:rotate(0deg); box-shadow:0 0 14px 3px var(--glow), 0 0 2px 1px var(--glow); }
+    50%{ box-shadow:0 0 26px 7px var(--glow), 0 0 4px 2px var(--glow); }
+    100%{ transform:rotate(360deg); box-shadow:0 0 14px 3px var(--glow), 0 0 2px 1px var(--glow); }
   }
   @keyframes pulseBadge{
     0%,100%{ box-shadow:0 0 0 0 rgba(255,90,78,0.55); }
     50%{ box-shadow:0 0 0 6px rgba(255,90,78,0); }
   }
   @keyframes glowPulse{
-    0%,100%{ box-shadow:0 0 0 0 var(--glow); }
-    50%{ box-shadow:0 0 14px 2px var(--glow); }
+    0%,100%{ box-shadow:0 0 4px 0 var(--glow); }
+    50%{ box-shadow:0 0 22px 5px var(--glow); }
   }
   @keyframes marqueeScroll{
     0%{ transform:translateX(0); }
@@ -67,8 +67,8 @@
   }
   .marquee-track{ display:inline-block; padding-left:100%; }
   .marquee-track span{ font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:0.4px; color:#fff; padding:0 18px; }
-  .theme-swatch{ width:40px; height:40px; border-radius:50%; border:2px solid var(--border-strong); cursor:pointer; flex-shrink:0; }
-  .theme-swatch.active{ border-color:var(--text); }
+  .theme-swatch{ width:40px; height:40px; border-radius:50%; border:2px solid var(--border-strong); cursor:pointer; flex-shrink:0; box-shadow:0 0 12px 1px currentColor, inset 0 0 0 1px rgba(255,255,255,0.15); }
+  .theme-swatch.active{ border-color:var(--text); box-shadow:0 0 16px 3px currentColor, inset 0 0 0 1px rgba(255,255,255,0.25); }
   .channel-open-panel{
     flex:1; min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
     background:var(--accent-tint); border:1px dashed var(--border-strong); border-radius:16px; cursor:pointer; padding:20px;
@@ -117,6 +117,7 @@
   input:focus, textarea:focus, select:focus{border-color:var(--accent);}
   label.field-label{display:block; font-size:11px; font-family:var(--mono); letter-spacing:0.8px; text-transform:uppercase; color:var(--text-muted); margin:14px 0 6px;}
   label.field-label:first-child{margin-top:0;}
+  p.btn-caption{ font-size:12px; color:var(--text-muted); margin:6px 0 16px; line-height:1.4; }
 
   button{
     font-family:var(--sans); font-size:14px; font-weight:500; border-radius:6px; border:1px solid var(--border-strong);
@@ -335,17 +336,17 @@ async function copyCodeToClipboard(code, feedbackEl){
   }
 }
 function shareCode(code){
-  const text = `Присоединяйся к нашему секретному штабу! Код: ${code}`;
-  copyCodeToClipboard(code, document.getElementById('copyFeedback'));
-  if(navigator.share){
-    navigator.share({ text }).catch(()=>{});
-  }
+  const returnTo = modal;
+  modal = { type:'shareOptions', code, returnTo };
+  render();
 }
 function wireCodeButtons(){
   const copyBtn = document.getElementById('copyRoomCodeBtn');
   if(copyBtn) copyBtn.onclick = ()=> copyCodeToClipboard(copyBtn.getAttribute('data-code'), document.getElementById('copyFeedback'));
   const shareBtn = document.getElementById('shareRoomCodeBtn');
   if(shareBtn) shareBtn.onclick = ()=> shareCode(shareBtn.getAttribute('data-code'));
+  const copyAgainBtn = document.getElementById('shareOptionsCopyAgain');
+  if(copyAgainBtn) copyAgainBtn.onclick = ()=> copyCodeToClipboard(copyAgainBtn.getAttribute('data-code'), document.getElementById('copyFeedback'));
 }
 
 let state = null;
@@ -396,8 +397,8 @@ function applyTheme(){
   const h = ((t.accentH + themeState.hue) % 360 + 360) % 360;
   const s = t.accentS, l = t.accentL;
   const accent = `hsl(${h},${s}%,${l}%)`;
-  const accentTint = `hsla(${h},${s}%,${l}%,${t.mode==='dark'?0.20:0.14})`;
-  const inkL = t.mode==='dark' ? Math.min(l+28,88) : Math.max(l-24,16);
+  const accentTint = `hsla(${h},${s}%,${l}%,${t.mode==='dark'?0.28:0.18})`;
+  const inkL = t.mode==='dark' ? Math.min(l+22,82) : Math.max(l-20,18);
   const accentInk = `hsl(${h},${s}%,${inkL}%)`;
   const root = document.documentElement.style;
   root.setProperty('--bg', t.bg);
@@ -446,6 +447,7 @@ function defaultState(){
     ],
     missions: [],
     rewards: [],
+    adjustments: [],
     messages: { hq: [] }
   };
 }
@@ -515,6 +517,7 @@ function normalizeState(val){
     channels,
     missions: Array.isArray(v.missions) ? v.missions : d.missions,
     rewards: Array.isArray(v.rewards) ? v.rewards : d.rewards,
+    adjustments: Array.isArray(v.adjustments) ? v.adjustments : d.adjustments,
     messages: (v.messages && typeof v.messages==='object') ? Object.assign({hq:[]}, v.messages) : d.messages
   };
 }
@@ -604,7 +607,8 @@ function redeemedTotal(agentId){
 function availablePoints(agentId){
   const earned = state.missions.filter(m=>m.assignedTo===agentId && m.status==="approved").reduce((s,m)=>s+m.points,0);
   const spent = state.rewards.filter(r=>r.redeemedBy===agentId).reduce((s,r)=>s+r.cost,0);
-  return earned - spent;
+  const adjusted = (state.adjustments||[]).filter(a=>a.agentId===agentId).reduce((s,a)=>s+a.delta,0);
+  return earned - spent + adjusted;
 }
 
 function sealStyle(color){
@@ -619,6 +623,11 @@ function initials(name){
 function render(){
   const root = document.getElementById("root");
   if(view === "loading"){ root.innerHTML = ""; return; }
+  if(view === "onboarding"){
+    root.innerHTML = renderOnboarding();
+    attachOnboardingEvents();
+    return;
+  }
   if(view === "room"){
     root.innerHTML = renderRoomScreen() + (modal ? renderModal() : '');
     attachRoomEvents();
@@ -663,6 +672,70 @@ function renderNav(){
   </div>`;
 }
 
+const ONBOARDING_KEY = "hq_seen_onboarding";
+let onboardingStep = 0;
+const ONBOARDING_SLIDES = [
+  {
+    icon: "◈",
+    title: "Добро пожаловать в Секретный штаб",
+    text: "Это семейная игра-мессенджер. Вы — тайное агентство: у каждого свой позывной, а домашние дела превращаются в миссии."
+  },
+  {
+    icon: "✦",
+    title: "Как работают миссии",
+    text: "Директор (родитель) создаёт миссию с наградой в очках. Агент (ребёнок) выполняет и отмечает готовность. Директор проверяет и подтверждает — только тогда очки начисляются."
+  },
+  {
+    icon: "◆",
+    title: "Очки и награды",
+    text: "Очки не сгорают — можно копить на крупную награду или тратить сразу. Список наград вписывает Директор — от похода в кино до путешествия."
+  },
+  {
+    icon: "\u2726",
+    title: "Штаб — это код",
+    text: "Каждая семья или группа — отдельный закрытый штаб со своим кодом. Один создаёт штаб и получает код, остальные вводят этот же код, чтобы присоединиться. Разные штабы никогда не видят данные друг друга."
+  }
+];
+
+function renderOnboarding(){
+  const s = ONBOARDING_SLIDES[onboardingStep];
+  const isLast = onboardingStep === ONBOARDING_SLIDES.length - 1;
+  const dots = ONBOARDING_SLIDES.map((_,i)=>`<span style="width:${i===onboardingStep?'18px':'6px'}; height:6px; border-radius:3px; background:${i===onboardingStep?'var(--accent)':'var(--border-strong)'}; display:inline-block; transition:width .2s;"></span>`).join('<span style="width:6px;"></span>');
+  return `
+  <div class="screen" style="padding-bottom:40px; display:flex; flex-direction:column; min-height:100vh;">
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+      <div class="brand-mark spin-glow" style="width:70px; height:70px; margin-bottom:24px;">
+        <i style="font-size:28px;">${s.icon}</i>
+      </div>
+      <h1 style="font-size:22px; margin-bottom:14px;">${s.title}</h1>
+      <p class="lead" style="max-width:420px;">${s.text}</p>
+    </div>
+    <div style="display:flex; justify-content:center; align-items:center; gap:4px; margin-bottom:20px;">${dots}</div>
+    <div class="btn-row">
+      ${onboardingStep>0 ? `<button id="obBack">назад</button>` : `<button id="obSkip">пропустить</button>`}
+      <button class="btn-primary" id="obNext">${isLast ? 'начать →' : 'далее →'}</button>
+    </div>
+  </div>`;
+}
+
+function attachOnboardingEvents(){
+  const finish = ()=>{
+    try{ localStorage.setItem(ONBOARDING_KEY, '1'); }catch(e){}
+    onboardingStep = 0;
+    view = 'room';
+    render();
+  };
+  const skip = document.getElementById('obSkip');
+  if(skip) skip.onclick = finish;
+  const back = document.getElementById('obBack');
+  if(back) back.onclick = ()=>{ onboardingStep = Math.max(0, onboardingStep-1); render(); };
+  const next = document.getElementById('obNext');
+  if(next) next.onclick = ()=>{
+    if(onboardingStep < ONBOARDING_SLIDES.length-1){ onboardingStep++; render(); }
+    else finish();
+  };
+}
+
 function renderRoomScreen(){
   return `
   <div class="screen" style="padding-bottom:40px;">
@@ -678,11 +751,14 @@ function renderRoomScreen(){
 
     <h2>новый штаб</h2>
     <button class="btn-primary btn-block" id="createRoomBtn">создать новый штаб</button>
+    <p class="btn-caption">выберите это, если вы первый из семьи — получите уникальный код, который потом передадите остальным</p>
 
     <h2>уже есть код</h2>
     <label class="field-label">код штаба</label>
     <input id="joinRoomCode" placeholder="например: X7K2QP" maxlength="8" style="text-transform:uppercase;"/>
+    <p class="btn-caption" style="margin-top:6px;">впишите сюда код, который вам прислал создатель штаба (6 букв/цифр)</p>
     <button class="btn-block" style="margin-top:12px" id="joinRoomBtn">войти по коду</button>
+    <p class="btn-caption">выберите это, если кто-то из семьи уже создал штаб и прислал вам код</p>
   </div>`;
 }
 
@@ -748,7 +824,8 @@ function renderIdentity(){
           <button class="btn-ghost-sm btn-enter" data-select-agent="${a.id}">войти →</button>
           <button class="btn-ghost-sm" data-delete-agent="${a.id}" style="border-color:var(--danger); color:var(--danger);">удалить</button>
         </div>
-      `).join('')}` : ''}
+      `).join('')}
+      <p class="btn-caption">нажмите "войти", если это ваш позывной. "удалить" — если он создан по ошибке (действие необратимо)</p>` : ''}
 
     <h2>новый агент</h2>
     <label class="field-label">ваш позывной</label>
@@ -758,7 +835,8 @@ function renderIdentity(){
       <option value="agent">агент (ребёнок)</option>
       <option value="director">директор (родитель)</option>
     </select>
-    <button class="btn-primary btn-block" style="margin-top:16px" id="createAgentBtn">создать удостоверение ↗</button>
+    <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки</p>
+    <button class="btn-primary btn-block" style="margin-top:4px" id="createAgentBtn">создать удостоверение ↗</button>
   </div>`;
 }
 
@@ -815,7 +893,7 @@ function renderHome(){
 
     <h2>активные миссии</h2>
     ${activeMissions.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>нет активных заданий</div></div>` :
-      activeMissions.slice(0,3).map(missionCardHtml).join('')}
+      activeMissions.slice(0,3).map(msn=>missionCardHtml(msn)).join('')}
 
     <h2>каналы связи</h2>
     ${renderChannelList(m)}
@@ -863,7 +941,7 @@ function renderChannelList(m){
   }).join('');
 }
 
-function missionCardHtml(msn){
+function missionCardHtml(msn, showDelete){
   const assignee = agentById(msn.assignedTo);
   const statusLabel = {open:'открыто', review:'на проверке', approved:'подтверждено', rejected:'отклонено'}[msn.status];
   const statusClass = {open:'status-open', review:'status-review', approved:'status-approved', rejected:'status-rejected'}[msn.status];
@@ -876,6 +954,7 @@ function missionCardHtml(msn){
     <div><span class="status-pill ${statusClass}">${statusLabel}</span></div>
     ${msn.status==='rejected' && msn.rejectReason ? `<div style="font-size:12px;color:var(--danger);margin-top:6px;">причина: ${escapeHtml(msn.rejectReason)}</div>` : ''}
     ${canMarkDone ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-mark-done="${msn.id}">отметить выполненным</button>` : ''}
+    ${showDelete ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}">удалить миссию</button>` : ''}
   </div>`;
 }
 
@@ -886,10 +965,11 @@ function renderMissions(){
   const sorted = [...list].sort((a,b)=> (a.status==='open'?0:1) - (b.status==='open'?0:1));
   return `
     <h1>миссии</h1>
-    <p class="lead">${director?'все задания агентства':'ваши текущие задания'}</p>
-    ${director ? `<button class="btn-primary btn-block" style="margin-bottom:16px" id="newMissionBtn">+ новая миссия</button>` : ''}
+    <p class="lead">${director?'все задания агентства':'ваши текущие задания. отметьте выполненным — директор проверит и начислит очки'}</p>
+    ${director ? `<button class="btn-primary btn-block" style="margin-bottom:4px" id="newMissionBtn">+ новая миссия</button>
+      <p class="btn-caption">создайте задание для агента — оно появится и в его списке миссий, и в общем чате</p>` : ''}
     ${sorted.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>заданий пока нет</div></div>` :
-      sorted.map(missionCardHtml).join('')}
+      sorted.map(msn=>missionCardHtml(msn, director)).join('')}
   `;
 }
 
@@ -926,11 +1006,29 @@ function renderRewards(){
   const director = m.role==='director';
   const rewards = state.rewards.filter(r=>!r.redeemedBy);
   const pts = director ? null : availablePoints(m.id);
+  const agents = state.agents.filter(a=>a.role==='agent');
   return `
     <h1>награды</h1>
     ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
-      <button class="btn-primary btn-block" style="margin-bottom:16px" id="newRewardBtn">+ вписать награду</button>`
+      <button class="btn-primary btn-block" style="margin-bottom:4px" id="newRewardBtn">+ вписать награду</button>
+      <p class="btn-caption">например: "поход в кино" за 50 очков. агенты увидят это в своём списке наград</p>`
       : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value">${pts}</div></div>`}
+
+    ${director && agents.length>0 ? `
+    <h2>баланс очков агентов</h2>
+    <p class="btn-caption" style="margin-top:0;">используйте это только для исправления ошибок — обычно очки начисляются автоматически при подтверждении миссий</p>
+    ${agents.map(a=>`
+      <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="seal-sm" style="${sealStyle(a.color)}">${initials(a.name)}</div>
+          <div>
+            <div style="font-size:14px; font-weight:500;">${escapeHtml(a.name)}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${availablePoints(a.id)} очков</div>
+          </div>
+        </div>
+        <button class="btn-ghost-sm" data-adjust-points="${a.id}">исправить баланс</button>
+      </div>
+    `).join('')}` : ''}
 
     <h2>список наград</h2>
     ${rewards.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>наград пока нет</div></div>` :
@@ -943,7 +1041,10 @@ function renderRewards(){
             <div class="reward-title">${escapeHtml(r.title)}</div>
             <div class="reward-cost">${r.cost} очков</div>
           </div>
-          ${!director ? `<button class="btn-ghost-sm" ${canRedeem?'':'disabled style="opacity:0.4"'} data-redeem="${r.id}">получить</button>` : ''}
+          ${!director ? `<button class="btn-ghost-sm" ${canRedeem?'':'disabled style="opacity:0.4"'} data-redeem="${r.id}">получить</button>` : `
+            <button class="btn-ghost-sm" data-edit-reward="${r.id}">изменить</button>
+            <button class="btn-ghost-sm" data-delete-reward="${r.id}" style="border-color:var(--danger); color:var(--danger);">удалить</button>
+          `}
         </div>`;
       }).join('')}
 
@@ -1033,6 +1134,49 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'shareOptions'){
+    const code = modal.code;
+    const text = encodeURIComponent(`Присоединяйся к нашему секретному штабу! Код: ${code}`);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">отправить код</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите, куда отправить — код уже скопирован на всякий случай</p>
+        <a href="sms:?body=${text}" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
+          <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">📱</div>
+          <div class="choice-name">СМС</div>
+        </a>
+        <a href="https://wa.me/?text=${text}" target="_blank" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
+          <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">💬</div>
+          <div class="choice-name">WhatsApp</div>
+        </a>
+        <a href="https://t.me/share/url?url=&text=${text}" target="_blank" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
+          <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">✈️</div>
+          <div class="choice-name">Telegram</div>
+        </a>
+        <button class="btn-block" id="shareOptionsCopyAgain" data-code="${code}">просто скопировать ещё раз</button>
+        <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'confirmDeleteRoom'){
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">удалить штаб навсегда?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          все агенты, миссии, награды и переписка этого штаба будут удалены безвозвратно у всех участников. это нельзя отменить.
+        </p>
+        <label class="field-label">чтобы подтвердить, введите код штаба</label>
+        <input id="confirmRoomCodeInput" placeholder="${roomId}" style="text-transform:uppercase;"/>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmDeleteRoom">удалить навсегда</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'profile'){
     const m = me();
     return `<div class="modal-overlay" id="modalOverlay">
@@ -1062,6 +1206,7 @@ function renderModal(){
         </div>
         <button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteSelf">удалить это удостоверение</button>
         <button class="btn-block" style="margin-top:8px" id="modalSwitchRoom">сменить штаб</button>
+        ${m.role==='director' ? `<button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteRoom">удалить штаб навсегда</button>` : ''}
       </div>
     </div>`;
   }
@@ -1144,7 +1289,7 @@ function renderModal(){
             const t = THEMES[key];
             const active = themeState.theme===key;
             return `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-              <div class="theme-swatch ${active?'active':''}" style="background:${t.swatch};" data-pick-theme="${key}"></div>
+              <div class="theme-swatch ${active?'active':''}" style="background:${t.swatch}; color:${t.swatch};" data-pick-theme="${key}"></div>
               <span style="font-size:11px;color:var(--text-muted);font-family:var(--mono);">${t.label}</span>
             </div>`;
           }).join('')}
@@ -1158,16 +1303,35 @@ function renderModal(){
     </div>`;
   }
   if(modal.type === 'newReward'){
+    const editing = modal.rewardId ? state.rewards.find(r=>r.id===modal.rewardId) : null;
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
-        <div class="modal-title">вписать награду</div>
+        <div class="modal-title">${editing ? 'изменить награду' : 'вписать награду'}</div>
         <label class="field-label">название</label>
-        <input id="rTitle" placeholder="например: поход в кино"/>
+        <input id="rTitle" placeholder="например: поход в кино" value="${editing ? escapeHtml(editing.title) : ''}"/>
         <label class="field-label">цена в очках</label>
-        <input id="rCost" type="number" min="1" value="50"/>
+        <input id="rCost" type="number" min="1" value="${editing ? editing.cost : 50}"/>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">отмена</button>
-          <button class="btn-primary" id="modalCreateReward">добавить</button>
+          <button class="btn-primary" id="modalCreateReward" data-reward-id="${editing ? editing.id : ''}">${editing ? 'сохранить' : 'добавить'}</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'adjustPoints'){
+    const agent = agentById(modal.agentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">исправить баланс — ${escapeHtml(agent?agent.name:'')}</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">текущий баланс: ${availablePoints(modal.agentId)} очков</p>
+        <label class="field-label">на сколько изменить</label>
+        <input id="adjustDelta" type="number" placeholder="например: 10 или -10"/>
+        <p class="btn-caption">положительное число — добавить очки, отрицательное — списать</p>
+        <label class="field-label">причина (необязательно)</label>
+        <input id="adjustReason" placeholder="например: ошибка при подтверждении"/>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalApplyAdjust" data-agent-id="${modal.agentId}">применить</button>
         </div>
       </div>
     </div>`;
@@ -1214,7 +1378,7 @@ function attachIdentityEvents(){
   };
 
   const modalCancel = document.getElementById('modalCancel');
-  if(modalCancel) modalCancel.onclick = ()=>{ modal=null; render(); };
+  if(modalCancel) modalCancel.onclick = ()=>{ modal = (modal && modal.returnTo) || null; render(); };
   const modalConfirmDelete = document.getElementById('modalConfirmDelete');
   if(modalConfirmDelete) modalConfirmDelete.onclick = async ()=>{
     await deleteAgentById(modal.agentId);
@@ -1238,6 +1402,12 @@ function attachEvents(){
       if(msn){ msn.status='review'; await saveState(); render(); }
     };
   });
+  document.querySelectorAll('[data-delete-mission]').forEach(el=>{
+    el.onclick = async ()=>{
+      state.missions = state.missions.filter(x=>x.id!==el.getAttribute('data-delete-mission'));
+      await saveState(); render();
+    };
+  });
   document.querySelectorAll('[data-approve]').forEach(el=>{
     el.onclick = async ()=>{
       const id = el.getAttribute('data-approve');
@@ -1256,6 +1426,18 @@ function attachEvents(){
         r.redeemedBy = myAgentId;
         await saveState(); render();
       }
+    };
+  });
+  document.querySelectorAll('[data-edit-reward]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'newReward', rewardId: el.getAttribute('data-edit-reward')}; render(); };
+  });
+  document.querySelectorAll('[data-adjust-points]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'adjustPoints', agentId: el.getAttribute('data-adjust-points')}; render(); };
+  });
+  document.querySelectorAll('[data-delete-reward]').forEach(el=>{
+    el.onclick = async ()=>{
+      state.rewards = state.rewards.filter(r=>r.id!==el.getAttribute('data-delete-reward'));
+      await saveState(); render();
     };
   });
   document.querySelectorAll('[data-approve-request]').forEach(el=>{
@@ -1299,7 +1481,7 @@ function attachEvents(){
   const overlay = document.getElementById('modalOverlay');
   if(overlay){
     const cancel = document.getElementById('modalCancel');
-    if(cancel) cancel.onclick = ()=>{ modal=null; render(); };
+    if(cancel) cancel.onclick = ()=>{ modal = (modal && modal.returnTo) || null; render(); };
 
     document.querySelectorAll('[data-pick-theme]').forEach(el=>{
       el.onclick = async ()=>{
@@ -1368,6 +1550,27 @@ function attachEvents(){
       render();
     };
 
+    const deleteRoomBtn = document.getElementById('modalDeleteRoom');
+    if(deleteRoomBtn) deleteRoomBtn.onclick = ()=>{ modal = {type:'confirmDeleteRoom'}; render(); };
+
+    const confirmDeleteRoomBtn = document.getElementById('modalConfirmDeleteRoom');
+    if(confirmDeleteRoomBtn) confirmDeleteRoomBtn.onclick = async ()=>{
+      const typed = document.getElementById('confirmRoomCodeInput').value.trim().toUpperCase();
+      if(typed !== roomId) return;
+      try{
+        db.ref('rooms/'+roomId+'/appState').off();
+        db.ref('rooms/'+roomId+'/presence').off();
+        await db.ref('rooms/'+roomId).remove();
+      }catch(e){ showError('deleteRoom: '+e.message); }
+      try{ localStorage.removeItem(myIdKey()); }catch(e){}
+      try{ localStorage.removeItem(ROOM_KEY); }catch(e){}
+      myAgentId = null;
+      roomId = null;
+      modal = null;
+      view = 'room';
+      render();
+    };
+
     const createMission = document.getElementById('modalCreateMission');
     if(createMission) createMission.onclick = async ()=>{
       const title = document.getElementById('mTitle').value.trim();
@@ -1392,12 +1595,30 @@ function attachEvents(){
       modal=null; render();
     };
 
+    const applyAdjust = document.getElementById('modalApplyAdjust');
+    if(applyAdjust) applyAdjust.onclick = async ()=>{
+      const agentId = applyAdjust.getAttribute('data-agent-id');
+      const delta = parseInt(document.getElementById('adjustDelta').value);
+      if(!delta) { modal=null; render(); return; }
+      const reason = document.getElementById('adjustReason').value.trim();
+      state.adjustments = state.adjustments || [];
+      state.adjustments.push({ id:uid(), agentId, delta, reason, createdBy: myAgentId, ts: Date.now() });
+      await saveState();
+      modal=null; render();
+    };
+
     const createReward = document.getElementById('modalCreateReward');
     if(createReward) createReward.onclick = async ()=>{
       const title = document.getElementById('rTitle').value.trim();
       const cost = parseInt(document.getElementById('rCost').value)||10;
       if(!title) return;
-      state.rewards.push({id:uid(), title, cost, redeemedBy:null});
+      const editId = createReward.getAttribute('data-reward-id');
+      if(editId){
+        const r = state.rewards.find(x=>x.id===editId);
+        if(r){ r.title = title; r.cost = cost; }
+      } else {
+        state.rewards.push({id:uid(), title, cost, redeemedBy:null});
+      }
       await saveState();
       modal=null; render();
     };
@@ -1413,7 +1634,12 @@ function scrollChatBottom(){
 (async function init(){
   await loadTheme();
   loadRoomId();
-  if(!roomId){
+  let seenOnboarding = false;
+  try{ seenOnboarding = !!localStorage.getItem(ONBOARDING_KEY); }catch(e){}
+  if(!roomId && !seenOnboarding){
+    view = 'onboarding';
+    render();
+  } else if(!roomId){
     view = 'room';
     render();
   } else {
