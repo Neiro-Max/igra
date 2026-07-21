@@ -741,7 +741,7 @@ function attachOnboardingEvents(){
   const finish = ()=>{
     try{ localStorage.setItem(ONBOARDING_KEY, '1'); }catch(e){}
     onboardingStep = 0;
-    view = 'room';
+    view = roomId ? 'home' : 'room';
     render();
   };
   const skip = document.getElementById('obSkip');
@@ -767,6 +767,7 @@ function renderRoomScreen(){
     </div>
     <h1>ваш штаб</h1>
     <p class="lead">каждый штаб — это отдельная закрытая комната. создайте новый штаб для своей семьи, или введите код, если штаб уже существует.</p>
+    <button class="btn-ghost-sm" id="showOnboardingBtn" style="margin-bottom:14px;">не понимаете, что это? посмотреть инструкцию →</button>
 
     <h2>новый штаб</h2>
     <button class="btn-primary btn-block" id="createRoomBtn">создать новый штаб</button>
@@ -783,6 +784,8 @@ function renderRoomScreen(){
 
 function attachRoomEvents(){
   wireCodeButtons();
+  const showOnboardingBtn = document.getElementById('showOnboardingBtn');
+  if(showOnboardingBtn) showOnboardingBtn.onclick = ()=>{ onboardingStep=0; view='onboarding'; render(); };
   const createBtn = document.getElementById('createRoomBtn');
   if(createBtn) createBtn.onclick = ()=>{
     const code = generateRoomCode();
@@ -889,6 +892,7 @@ function renderHome(){
         <div class="brand-title">секретный штаб</div>
         <div class="brand-sub">${m.role==='director'?'директор':'агент'} · ${escapeHtml(m.name)}</div>
       </div>
+      <button class="theme-btn" data-open-rules="1" aria-label="правила игры" style="margin-right:6px;">📖</button>
       <button class="theme-btn" data-open-theme="1" aria-label="сменить цвет темы">🎨 цвет</button>
       <div class="seal-sm" style="${sealStyle(m.color)}; cursor:pointer;" data-open-profile="1">${initials(m.name)}</div>
     </div>
@@ -1270,6 +1274,9 @@ function renderModal(){
           <button id="modalCancel">закрыть</button>
           <button class="btn-danger-outline" id="modalSwitchAgent">сменить агента</button>
         </div>
+        <button class="btn-block" style="margin-top:8px" id="modalShowRules">📖 правила игры</button>
+        <button class="btn-block" style="margin-top:8px" id="modalShowCode">🤝 кодекс агента</button>
+        <button class="btn-block" style="margin-top:8px" id="modalReplayOnboarding">↺ посмотреть инструкцию заново</button>
         <button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteSelf">удалить это удостоверение</button>
         <button class="btn-block" style="margin-top:8px" id="modalSwitchRoom">сменить штаб</button>
         ${m.role==='director' ? `<button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteRoom">удалить штаб навсегда</button>` : ''}
@@ -1340,6 +1347,75 @@ function renderModal(){
         <button class="btn-primary btn-block" style="margin-top:16px" id="createGroupBtn">создать группу</button>
 
         <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'codeOfConduct'){
+    const forbidden = [
+      'оскорбительные высказывания в адрес других агентов',
+      'обманы — как в игре, так и в жизни',
+      'ссоры и выяснение отношений через штаб',
+      'нарушения закона',
+      'травля и дразнилки — специально обижать или высмеивать другого агента',
+      'угрозы кому бы то ни было',
+      'разглашение личных данных агентов посторонним (адрес, пароли, телефон и т.п.)',
+      'создавать группы или чаты, чтобы нарочно исключить и обидеть кого-то',
+      'ложные обвинения — обвинять агента в том, чего он не делал'
+    ];
+    const allowed = [
+      'хорошее настроение',
+      'вежливость',
+      'честность',
+      'взаимопомощь — помогать другому агенту с его миссией',
+      'добрый юмор и шутки',
+      'поддержка и похвала за выполненные задания',
+      'признавать свои ошибки и просить о помощи',
+      'творческий подход к выполнению миссий'
+    ];
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">кодекс агента</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">эти правила держатся на доверии, а не на автоматических наказаниях — но каждый агент штаба обязуется их соблюдать</p>
+
+        <div style="font-size:13px; font-weight:700; color:var(--danger); font-family:var(--mono); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px;">строго запрещается</div>
+        ${forbidden.map(f=>`<div style="display:flex; gap:8px; margin-bottom:8px; font-size:14px; line-height:1.4;"><span style="color:var(--danger); flex-shrink:0;">✕</span><span>${f}</span></div>`).join('')}
+
+        <div style="font-size:13px; font-weight:700; color:var(--accent-ink); font-family:var(--mono); text-transform:uppercase; letter-spacing:0.4px; margin:18px 0 8px;">разрешается и приветствуется</div>
+        ${allowed.map(a=>`<div style="display:flex; gap:8px; margin-bottom:8px; font-size:14px; line-height:1.4;"><span style="color:var(--accent); flex-shrink:0;">✓</span><span>${a}</span></div>`).join('')}
+
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'rules'){
+    const rules = [
+      ['Позывной', 'каждый выбирает себе сам — это личный выбор агента'],
+      ['Миссии', 'директор создаёт задание с наградой в очках. можно назначить сразу нескольких агентов — это групповая миссия'],
+      ['Выполнение', 'агент отмечает задание готовым. очки начисляются только после проверки директором'],
+      ['Отклонено — не тупик', 'если директор отклонил задание с причиной, агент может исправить и отправить снова'],
+      ['Очки', 'не сгорают и принадлежат только тому, кто их заработал. можно копить на крупную награду'],
+      ['Награды', 'директор вписывает их вручную. агент запрашивает награду — но баллы спишутся только когда директор подтвердит, что реально её выдал'],
+      ['Личные чаты', 'нужно одобрение того, кому пишете — это защита от нежелательного общения'],
+      ['Группы', 'создаются сразу, без одобрения — как обычный групповой чат'],
+      ['Директор', 'видит все каналы и все задания, может исправить баланс очков вручную при ошибке'],
+      ['Код штаба', 'приватный — его знают только члены вашей семьи. не публикуйте его где попало']
+    ];
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">правила игры</div>
+        ${rules.map(r=>`
+          <div style="margin-bottom:14px;">
+            <div style="font-size:13px; font-weight:700; color:var(--accent-ink); font-family:var(--mono); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:3px;">${r[0]}</div>
+            <div style="font-size:14px; color:var(--text); line-height:1.5;">${r[1]}</div>
+          </div>
+        `).join('')}
+        <button class="btn-block" style="margin-top:6px" id="modalShowCodeFromRules">🤝 кодекс агента (правила поведения)</button>
+        <button class="btn-block" style="margin-top:6px" id="modalReplayOnboardingFromRules">↺ посмотреть инструкцию с картинками</button>
+        <div class="btn-row" style="margin-top:10px">
           <button id="modalCancel">закрыть</button>
         </div>
       </div>
@@ -1548,6 +1624,8 @@ function attachEvents(){
   });
   const themeBtn = document.querySelector('[data-open-theme]');
   if(themeBtn) themeBtn.onclick = ()=>{ modal = {type:'theme'}; render(); };
+  const rulesBtn = document.querySelector('[data-open-rules]');
+  if(rulesBtn) rulesBtn.onclick = ()=>{ modal = {type:'rules'}; render(); };
   const newChatBtn = document.querySelector('[data-open-newchat]');
   if(newChatBtn) newChatBtn.onclick = ()=>{ modal = {type:'newChat'}; render(); };
   const newMissionBtn = document.getElementById('newMissionBtn');
@@ -1628,6 +1706,17 @@ function attachEvents(){
       try{ if(prevId) await roomRef('presence/'+prevId).remove(); }catch(e){}
       modal = null; render();
     };
+
+    const showRulesBtn = document.getElementById('modalShowRules');
+    if(showRulesBtn) showRulesBtn.onclick = ()=>{ modal = {type:'rules'}; render(); };
+    const showCodeBtn = document.getElementById('modalShowCode');
+    if(showCodeBtn) showCodeBtn.onclick = ()=>{ modal = {type:'codeOfConduct'}; render(); };
+    const showCodeFromRulesBtn = document.getElementById('modalShowCodeFromRules');
+    if(showCodeFromRulesBtn) showCodeFromRulesBtn.onclick = ()=>{ modal = {type:'codeOfConduct'}; render(); };
+    const replayOnboardBtn = document.getElementById('modalReplayOnboarding');
+    if(replayOnboardBtn) replayOnboardBtn.onclick = ()=>{ modal=null; onboardingStep=0; view='onboarding'; render(); };
+    const replayOnboardFromRulesBtn = document.getElementById('modalReplayOnboardingFromRules');
+    if(replayOnboardFromRulesBtn) replayOnboardFromRulesBtn.onclick = ()=>{ modal=null; onboardingStep=0; view='onboarding'; render(); };
 
     const deleteSelf = document.getElementById('modalDeleteSelf');
     if(deleteSelf) deleteSelf.onclick = ()=>{
