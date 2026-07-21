@@ -681,7 +681,8 @@ function sealStyle(color){
   return `background:${color}22; color:${color};`;
 }
 function initials(name){
-  return name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+  const raw = String(name).trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+  return escapeHtml(raw);
 }
 
 /* ---------- RENDER ---------- */
