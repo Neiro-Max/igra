@@ -122,8 +122,8 @@
 
   /* Header / brand */
   .brand{display:flex; align-items:center; gap:10px; margin-bottom:22px;}
-  .brand-mark{width:34px; height:34px; clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background:var(--accent-dark); display:flex; align-items:center; justify-content:center; flex-shrink:0;}
-  .brand-mark i{color:var(--accent-ink); font-style:normal; font-family:var(--mono); font-size:14px; font-weight:700;}
+  .brand-mark{width:46px; height:46px; border-radius:50%; background:var(--accent-dark); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 0 0 2px var(--border-strong);}
+  .brand-mark i{color:var(--accent-ink); font-style:normal; font-family:var(--mono); font-size:15px; font-weight:700;}
   .brand-title{font-family:var(--mono); font-size:13px; letter-spacing:1.5px; color:var(--text-secondary); text-transform:uppercase;}
   .brand-sub{font-size:11px; color:var(--text-muted); font-family:var(--mono); letter-spacing:0.5px;}
 
@@ -1138,7 +1138,7 @@ function renderIdentity(){
           </div>
           <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
             <button class="btn-ghost-sm btn-enter" data-select-agent="${a.id}">войти →</button>
-            <button class="btn-ghost-sm" data-delete-agent="${a.id}" style="border-color:var(--danger); color:var(--danger);">удалить</button>
+            <button class="btn-ghost-sm" data-delete-agent="${a.id}" style="border-color:var(--danger); color:var(--danger);" aria-label="удалить агента">🗑️</button>
           </div>
         </div>
       `).join('')}
@@ -1182,8 +1182,14 @@ function renderHome(){
         <div class="brand-title">секретный штаб</div>
         <div class="brand-sub">${m.role==='director'?'директор':'агент'} · ${escapeHtml(m.name)} · номер: ${roomId}</div>
       </div>
-      <button class="theme-btn" data-open-rules="1" aria-label="правила игры" style="margin-right:6px;">📖</button>
-      <button class="theme-btn" data-open-theme="1" aria-label="сменить цвет темы">🎨 цвет</button>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; margin-right:10px;" data-open-rules="1" aria-label="правила игры">
+        <div class="seal-sm" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">📖</div>
+        <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">правила</span>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; margin-right:10px;" data-open-theme="1" aria-label="сменить цвет темы">
+        <div class="seal-sm" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">🎨</div>
+        <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">цвет</span>
+      </div>
       <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-profile="1">
         <div class="seal-sm" style="${sealStyle(m.color)}; width:46px; height:46px; font-size:15px; box-shadow:0 0 0 2px var(--border-strong);">${initials(m.name)}</div>
         <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">профиль</span>
@@ -1314,7 +1320,7 @@ function missionCardHtml(msn, showDelete){
     ${canPropose ? `<button class="btn-block" style="margin-top:8px; padding:13px 0; font-size:15px; font-weight:600; border-color:var(--amber); color:var(--amber-ink);" data-negotiate-mission="${msn.id}">💬 торг</button>` : ''}
     ${canRetry ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-retry-mission="${msn.id}">исправить и отправить снова</button>` : ''}
     ${canPlayBonus ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-play-safe="${msn.id}">🔓 взломать сейф — бонусные очки!</button>` : ''}
-    ${showDelete && msn.status!=='approved' ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}">удалить миссию</button>` : ''}
+    ${showDelete && msn.status!=='approved' ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}" aria-label="удалить миссию">🗑️</button>` : ''}
     ${showDelete && msn.status==='approved' ? `<div class="btn-caption" style="margin-top:8px; margin-bottom:0;">подтверждённое задание нельзя удалить — очки уже в истории агента</div>` : ''}
   </div>`;
 }
@@ -1453,7 +1459,7 @@ function renderRewards(){
             : `<button class="btn-ghost-sm" ${canRequest?'':'disabled style="opacity:0.4"'} data-request-reward="${r.id}">запросить</button>`) : `
             <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
               <button class="btn-ghost-sm" data-edit-reward="${r.id}">изменить</button>
-              <button class="btn-ghost-sm" data-delete-reward="${r.id}" style="border-color:var(--danger); color:var(--danger);">удалить</button>
+              <button class="btn-ghost-sm" data-delete-reward="${r.id}" style="border-color:var(--danger); color:var(--danger);" aria-label="удалить награду">🗑️</button>
             </div>
           `}
         </div>`;
