@@ -609,8 +609,12 @@ function normalizeState(val){
     }
     delete r.redeemedBy; delete r.requestedBy; delete r.status; delete r.redeemedAt;
   });
+  const agents = (Array.isArray(v.agents) ? v.agents : d.agents).map(a=>({
+    warnings:0, blockedUntil:null, permanentlyBlocked:false, pendingWarningAck:false,
+    ...a
+  }));
   return {
-    agents: Array.isArray(v.agents) ? v.agents : d.agents,
+    agents,
     channels,
     missions: Array.isArray(v.missions) ? v.missions : d.missions,
     rewards,
@@ -803,6 +807,21 @@ function render(){
     root.innerHTML = renderIdentity() + (modal ? renderModal() : '');
     attachIdentityEvents();
     return;
+  }
+
+  const meCheck = me();
+  if(meCheck.permanentlyBlocked){
+    root.innerHTML = renderBlockedScreen('permanent');
+    attachBlockedScreenEvents();
+    return;
+  }
+  if(meCheck.blockedUntil && meCheck.blockedUntil > Date.now()){
+    root.innerHTML = renderBlockedScreen('temporary', meCheck.blockedUntil);
+    attachBlockedScreenEvents();
+    return;
+  }
+  if(meCheck.pendingWarningAck && !modal){
+    modal = { type:'warningPopup' };
   }
 
   let body = "";
@@ -1051,6 +1070,31 @@ async function startRoomSession(){
   await heartbeat();
 }
 
+function renderBlockedScreen(kind, until){
+  const m = me();
+  const timeLeft = until ? Math.max(0, until - Date.now()) : 0;
+  const hoursLeft = Math.ceil(timeLeft / (3600*1000));
+  return `
+  <div class="screen" style="align-items:center; justify-content:center; text-align:center; min-height:100vh;">
+    <div style="font-size:48px; margin-bottom:16px;">${kind==='permanent' ? '🚫' : '⏳'}</div>
+    <h1 style="font-size:20px;">${kind==='permanent' ? 'вы исключены из штаба' : 'временная блокировка'}</h1>
+    <p class="lead" style="max-width:340px;">
+      ${kind==='permanent'
+        ? `Штаб зафиксировал повторные нарушения кодекса агента. Доступ для «${escapeHtml(m.name)}» закрыт навсегда. Если это ошибка — обратитесь к директору штаба.`
+        : `Доступ временно закрыт за нарушение кодекса агента. Осталось примерно ${hoursLeft} ${hoursLeft===1?'час':(hoursLeft<5?'часа':'часов')}. После этого сможете войти как обычно.`}
+    </p>
+    <button class="btn-block" style="margin-top:20px; max-width:260px;" id="blockedSwitchAgent">выйти</button>
+  </div>`;
+}
+function attachBlockedScreenEvents(){
+  const btn = document.getElementById('blockedSwitchAgent');
+  if(btn) btn.onclick = ()=>{
+    myAgentId = null;
+    try{ localStorage.removeItem(myIdKey()); }catch(e){}
+    render();
+  };
+}
+
 function renderIdentity(){
   const hasAgents = state.agents.length > 0;
   return `
@@ -1154,15 +1198,22 @@ function renderHome(){
     <h2>участники штаба (${state.agents.length})</h2>
     <div class="card" style="padding:10px 14px;">
       ${state.agents.length===0 ? `<div style="font-size:13px;color:var(--text-muted);">пока никого нет</div>` :
-        state.agents.map(a=>`
+        state.agents.map(a=>{
+          const statusNote = a.permanentlyBlocked ? ' · 🚫 исключён' : (a.blockedUntil && a.blockedUntil>Date.now() ? ' · ⏳ заблокирован' : (a.warnings>0 ? ` · ⚠️ предупреждений: ${a.warnings}` : ''));
+          const showWarnBtns = isDirector() && a.id!==myAgentId;
+          return `
           <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
             <div style="position:relative;">
               <div class="seal-sm" style="${sealStyle(a.color)}; width:30px; height:30px;">${initials(a.name)}</div>
               <span style="position:absolute; bottom:-1px; right:-1px; width:9px; height:9px; border-radius:50%; background:${onlineIds.has(a.id)?'var(--accent)':'var(--text-muted)'}; border:2px solid var(--panel);"></span>
             </div>
-            <div style="font-size:13px;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}</span></div>
-          </div>
-        `).join('')}
+            <div style="font-size:13px; flex:1; min-width:0;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}${statusNote}</span></div>
+            ${showWarnBtns ? `
+              <button class="btn-ghost-sm" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger); flex-shrink:0;">⚠️</button>
+              ${(a.warnings>0 || a.blockedUntil || a.permanentlyBlocked) ? `<button class="btn-ghost-sm" data-pardon-agent="${a.id}" style="flex-shrink:0;">✅</button>` : ''}
+            ` : ''}
+          </div>`;
+        }).join('')}
     </div>
 
     <h2>каналы связи</h2>
@@ -1565,6 +1616,43 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'warningPopup'){
+    const m = me();
+    const level = m ? m.warnings : 1;
+    const bodyText = level >= 3
+      ? `Штаб зафиксировал повторные нарушения кодекса. Это было последнее предупреждение.`
+      : level === 2
+      ? `Штаб зафиксировал нарушение кодекса — это уже второе предупреждение.<br><br>Именно поэтому доступ был временно заблокирован. Ещё одно нарушение — исключение из штаба навсегда.`
+      : `Штаб зафиксировал нарушение кодекса.<br><br>Это первое предупреждение — просто напоминание быть внимательнее.<br><br>Повторное нарушение — временная блокировка на 24 часа.<br>Ещё раз — исключение из штаба навсегда.`;
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet" style="text-align:center;">
+        <div style="font-size:40px; margin-bottom:8px;">🕵️</div>
+        <div class="modal-title">внимание, агент</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6; text-align:left;">${bodyText}</p>
+        <button class="btn-primary btn-block" style="margin-top:16px" id="ackWarning">понял, буду внимательнее</button>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'issueWarning'){
+    const agent = agentById(modal.agentId);
+    const nextLevel = (agent.warnings||0) + 1;
+    const consequence = nextLevel===1 ? 'агент получит первое предупреждение (без блокировки)'
+      : nextLevel===2 ? 'агент будет заблокирован на 24 часа'
+      : 'агент будет исключён из штаба навсегда';
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">выдать предупреждение?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          агенту «${escapeHtml(agent?agent.name:'')}» — это будет предупреждение №${nextLevel}.<br><br>
+          <b>последствие:</b> ${consequence}
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmWarning">выдать предупреждение</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDeleteMission'){
     const msn = state.missions.find(x=>x.id===modal.missionId);
     return `<div class="modal-overlay" id="modalOverlay">
@@ -1603,8 +1691,9 @@ function renderModal(){
           все агенты, миссии, награды и переписка этого штаба будут удалены безвозвратно у всех участников. это нельзя отменить.
         </p>
         <label class="field-label">чтобы подтвердить, введите личный номер</label>
-        <input id="confirmRoomCodeInput" placeholder="${roomId}" style="text-transform:uppercase;"/>
-        <div class="btn-row" style="margin-top:18px">
+        <input id="confirmRoomCodeInput" placeholder="впишите: ${roomId}" style="text-transform:uppercase;"/>
+        <div id="deleteRoomError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
           <button id="modalCancel">отмена</button>
           <button class="btn-danger-outline" id="modalConfirmDeleteRoom">удалить навсегда</button>
         </div>
@@ -2003,7 +2092,7 @@ function attachIdentityEvents(){
     const role = document.getElementById('newAgentRole').value;
     const color = SEAL_COLORS[state.agents.length % SEAL_COLORS.length];
     const id = uid();
-    state.agents.push({id, name, role, color});
+    state.agents.push({id, name, role, color, warnings:0, blockedUntil:null, permanentlyBlocked:false, pendingWarningAck:false});
     await saveState();
     saveMyId(id);
     await heartbeat();
@@ -2130,6 +2219,15 @@ function attachEvents(){
   document.querySelectorAll('[data-edit-reward]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'newReward', rewardId: el.getAttribute('data-edit-reward')}; render(); };
   });
+  document.querySelectorAll('[data-issue-warning]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'issueWarning', agentId: el.getAttribute('data-issue-warning')}; render(); };
+  });
+  document.querySelectorAll('[data-pardon-agent]').forEach(el=>{
+    el.onclick = async ()=>{
+      const agent = agentById(el.getAttribute('data-pardon-agent'));
+      if(agent){ agent.warnings = 0; agent.blockedUntil = null; agent.permanentlyBlocked = false; agent.pendingWarningAck = false; await saveState(); render(); }
+    };
+  });
   document.querySelectorAll('[data-adjust-points]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'adjustPoints', agentId: el.getAttribute('data-adjust-points')}; render(); };
   });
@@ -2252,6 +2350,27 @@ function attachEvents(){
       modal=null; render();
     };
 
+    const ackWarningBtn = document.getElementById('ackWarning');
+    if(ackWarningBtn) ackWarningBtn.onclick = async ()=>{
+      const m = me();
+      if(m) m.pendingWarningAck = false;
+      await saveState();
+      modal = null; render();
+    };
+
+    const confirmWarningBtn = document.getElementById('modalConfirmWarning');
+    if(confirmWarningBtn) confirmWarningBtn.onclick = async ()=>{
+      const agent = agentById(modal.agentId);
+      if(agent){
+        agent.warnings = (agent.warnings||0) + 1;
+        agent.pendingWarningAck = true;
+        if(agent.warnings === 2){ agent.blockedUntil = Date.now() + 24*60*60*1000; }
+        else if(agent.warnings >= 3){ agent.permanentlyBlocked = true; }
+        await saveState();
+      }
+      modal = null; render();
+    };
+
     const confirmDeleteMissionBtn = document.getElementById('modalConfirmDeleteMission');
     if(confirmDeleteMissionBtn) confirmDeleteMissionBtn.onclick = async ()=>{
       state.missions = state.missions.filter(x=>x.id!==modal.missionId);
@@ -2310,7 +2429,9 @@ function attachEvents(){
     const confirmDeleteRoomBtn = document.getElementById('modalConfirmDeleteRoom');
     if(confirmDeleteRoomBtn) confirmDeleteRoomBtn.onclick = async ()=>{
       const typed = document.getElementById('confirmRoomCodeInput').value.trim().toUpperCase();
-      if(typed !== roomId) return;
+      const errEl = document.getElementById('deleteRoomError');
+      if(!typed){ if(errEl) errEl.textContent = 'впишите личный номер, чтобы подтвердить'; return; }
+      if(typed !== roomId){ if(errEl) errEl.textContent = 'номер не совпадает — проверьте и попробуйте снова'; return; }
       try{
         db.ref('rooms/'+roomId+'/appState').off();
         db.ref('rooms/'+roomId+'/presence').off();
