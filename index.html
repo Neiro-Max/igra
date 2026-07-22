@@ -234,7 +234,7 @@
   .reward-card{display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:13px 14px; margin-bottom:10px; box-shadow:0 2px 10px rgba(21,36,32,0.05);}
   .reward-icon{width:38px; height:38px; border-radius:8px; background:var(--panel-alt); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;}
   .reward-title{font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .reward-cost{font-size:12px; font-family:var(--mono); color:var(--text-muted);}
+  .reward-cost{font-size:12px; font-family:var(--mono); color:var(--amber-ink); font-weight:700;}
 
   /* Channel list */
   .channel-row{display:flex; align-items:center; gap:12px; padding:11px 4px; border-top:1px solid var(--border); cursor:pointer;}
@@ -755,7 +755,7 @@ function pointsHistory(agentId){
   const entries = [];
   state.missions.forEach(m=>{
     if(m.status==='approved' && missionAssignees(m).includes(agentId)){
-      entries.push({ ts: m.approvedAt || 0, delta: m.points, label: `миссия: ${m.title}` });
+      entries.push({ ts: m.approvedAt || 0, delta: m.points, label: `миссия: ${m.title}`, type:'mission', missionId: m.id });
     }
   });
   (state.rewardRequests||[]).forEach(rq=>{
@@ -1307,6 +1307,7 @@ function renderMissions(){
   const sorted = [...list].sort((a,b)=> (a.status==='open'?0:1) - (b.status==='open'?0:1));
   return `
     <h1>миссии</h1>
+    <div style="display:inline-flex; align-items:center; gap:6px; background:var(--accent-tint); color:var(--accent-ink); font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.4px; padding:5px 10px; border-radius:20px; margin-bottom:8px;">⬆️ ЗДЕСЬ ОЧКИ НАЧИСЛЯЮТСЯ</div>
     <p class="lead">${director?'все задания агентства':'ваши текущие задания. отметьте выполненным — директор проверит и начислит очки'}</p>
     ${director ? `<button class="btn-primary btn-block" style="margin-bottom:4px" id="newMissionBtn">+ новая миссия</button>
       <p class="btn-caption">создайте задание для агента — оно появится и в его списке миссий, и в общем чате</p>` : ''}
@@ -1354,6 +1355,7 @@ function renderRewards(){
   const myPendingRequests = (state.rewardRequests||[]).filter(rq=>rq.status==='pending' && rq.agentId===m.id);
   return `
     <h1>награды</h1>
+    <div style="display:inline-flex; align-items:center; gap:6px; background:var(--amber-tint); color:var(--amber-ink); font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.4px; padding:5px 10px; border-radius:20px; margin-bottom:8px;">⬇️ ЗДЕСЬ ОЧКИ ТРАТЯТСЯ</div>
     ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
       <button class="btn-primary btn-block" style="margin-bottom:4px" id="newRewardBtn">+ вписать награду</button>
       <p class="btn-caption">например: "поход в кино" за 50 очков. награда остаётся в списке и после получения — её можно выдавать снова</p>`
@@ -1418,7 +1420,8 @@ function renderRewards(){
     <h2>список наград</h2>
     ${state.rewards.length===0 ? `<div class="empty-state">${illoGift()}<div class="stamp">пусто</div><div>наград пока нет</div></div>` :
       state.rewards.map(r=>{
-        const canRequest = !director && (availablePoints(myAgentId) - pendingRequestedCost(myAgentId)) >= r.cost;
+        const alreadyPending = !director && (state.rewardRequests||[]).some(rq=>rq.status==='pending' && rq.agentId===myAgentId && rq.rewardId===r.id);
+        const canRequest = !director && !alreadyPending && (availablePoints(myAgentId) - pendingRequestedCost(myAgentId)) >= r.cost;
         return `
         <div class="reward-card">
           <div class="reward-icon">◆</div>
@@ -1426,7 +1429,9 @@ function renderRewards(){
             <div class="reward-title">${escapeHtml(r.title)}</div>
             <div class="reward-cost">${r.cost} очков</div>
           </div>
-          ${!director ? `<button class="btn-ghost-sm" ${canRequest?'':'disabled style="opacity:0.4"'} data-request-reward="${r.id}">запросить</button>` : `
+          ${!director ? (alreadyPending
+            ? `<span style="font-size:12px; color:var(--text-muted); flex-shrink:0;">запрос отправлен</span>`
+            : `<button class="btn-ghost-sm" ${canRequest?'':'disabled style="opacity:0.4"'} data-request-reward="${r.id}">запросить</button>`) : `
             <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
               <button class="btn-ghost-sm" data-edit-reward="${r.id}">изменить</button>
               <button class="btn-ghost-sm" data-delete-reward="${r.id}" style="border-color:var(--danger); color:var(--danger);">удалить</button>
@@ -1958,12 +1963,15 @@ function renderModal(){
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">текущий баланс: ${availablePoints(modal.agentId)} очков</p>
         ${history.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>операций пока не было</div></div>` :
           history.map(h=>`
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border);">
-              <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border); gap:8px;">
+              <div style="min-width:0;">
                 <div style="font-size:14px;">${escapeHtml(h.label)}</div>
                 <div style="font-size:11px; color:var(--text-muted); font-family:var(--mono);">${h.ts ? new Date(h.ts).toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'дата неизвестна'}</div>
               </div>
-              <div style="font-family:var(--mono); font-weight:700; font-size:15px; color:${h.delta>=0?'var(--accent-ink)':'var(--danger)'};">${h.delta>=0?'+':''}${h.delta}</div>
+              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                ${h.type==='mission' && isDirector() ? `<button class="btn-ghost-sm" data-repeat-mission="${h.missionId}">🔁 повторить</button>` : ''}
+                <div style="font-family:var(--mono); font-weight:700; font-size:15px; color:${h.delta>=0?'var(--accent-ink)':'var(--danger)'};">${h.delta>=0?'+':''}${h.delta}</div>
+              </div>
             </div>
           `).join('')}
         <div class="btn-row" style="margin-top:18px">
@@ -2200,6 +2208,9 @@ function attachEvents(){
     el.onclick = async ()=>{
       const rewardId = el.getAttribute('data-request-reward');
       const r = state.rewards.find(x=>x.id===rewardId);
+      const alreadyPending = (state.rewardRequests||[]).some(rq=>rq.status==='pending' && rq.agentId===myAgentId && rq.rewardId===rewardId);
+      if(alreadyPending || el.disabled) return;
+      el.disabled = true;
       if(r && (availablePoints(myAgentId) - pendingRequestedCost(myAgentId)) >= r.cost){
         state.rewardRequests = state.rewardRequests || [];
         state.rewardRequests.push({ id:uid(), rewardId, agentId: myAgentId, status:'pending', requestedAt: Date.now() });
@@ -2235,6 +2246,27 @@ function attachEvents(){
     el.onclick = async ()=>{
       const agent = agentById(el.getAttribute('data-pardon-agent'));
       if(agent){ agent.warnings = 0; agent.blockedUntil = null; agent.permanentlyBlocked = false; agent.pendingWarningAck = false; await saveState(); render(); }
+    };
+  });
+  document.querySelectorAll('[data-repeat-mission]').forEach(el=>{
+    el.onclick = async ()=>{
+      const orig = state.missions.find(x=>x.id===el.getAttribute('data-repeat-mission'));
+      if(!orig) return;
+      const msn = {
+        id: uid(),
+        title: orig.title,
+        assignedTo: Array.isArray(orig.assignedTo) ? orig.assignedTo.slice() : orig.assignedTo,
+        points: orig.points,
+        deadline: orig.deadline || '',
+        status: 'open',
+        createdBy: myAgentId
+      };
+      state.missions.push(msn);
+      state.messages.hq = state.messages.hq || [];
+      state.messages.hq.push({ id:uid(), type:'mission', title: msn.title, points: msn.points, deadline: msn.deadline, from: myAgentId });
+      await saveState();
+      showToast(`🔁 миссия «${msn.title}» создана заново`);
+      modal = null; view = 'missions'; render();
     };
   });
   document.querySelectorAll('[data-adjust-points]').forEach(el=>{
