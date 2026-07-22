@@ -1066,8 +1066,11 @@ function attachRoomEvents(){
   if(overlay){
     const goBtn = document.getElementById('modalRoomContinue');
     if(goBtn) goBtn.onclick = async ()=>{
-      saveRoomId(modal.code);
+      if(!modal || goBtn.disabled) return;
+      goBtn.disabled = true;
+      const code = modal.code;
       modal = null;
+      saveRoomId(code);
       await startRoomSession();
     };
     const cancelBtn = document.getElementById('modalCancel');
