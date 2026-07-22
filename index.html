@@ -63,6 +63,31 @@
   @keyframes toastIn{ from{ opacity:0; transform:translateY(-16px) scale(0.95);} to{ opacity:1; transform:translateY(0) scale(1);} }
   @keyframes toastOut{ from{ opacity:1; transform:translateY(0) scale(1);} to{ opacity:0; transform:translateY(-12px) scale(0.95);} }
 
+  .radar-loader{ position:relative; width:130px; height:130px; margin:0 auto; }
+  .radar-ring{
+    position:absolute; inset:0; border:2px solid var(--accent); border-radius:50%;
+    opacity:0; transform:scale(0.15);
+  }
+  .radar-center{
+    position:absolute; top:50%; left:50%; width:12px; height:12px; margin:-6px;
+    border-radius:50%; background:var(--accent); box-shadow:0 0 14px 3px var(--glow);
+  }
+  .radar-orbit{ position:absolute; inset:0; }
+  .radar-dot{
+    position:absolute; top:4px; left:50%; width:9px; height:9px; margin-left:-4.5px;
+    border-radius:50%; background:var(--amber); box-shadow:0 0 10px 2px var(--amber);
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .radar-ring{ animation: radarPulse 2.4s ease-out infinite; }
+    .radar-orbit{ animation: radarSpin 3s linear infinite; }
+  }
+  @keyframes radarPulse{
+    0%{ transform:scale(0.15); opacity:0.9; }
+    70%{ opacity:0.15; }
+    100%{ transform:scale(1); opacity:0; }
+  }
+  @keyframes radarSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+
   @keyframes spinGlow{
     0%{ transform:rotate(0deg); box-shadow:0 0 14px 3px var(--glow), 0 0 2px 1px var(--glow); }
     50%{ box-shadow:0 0 26px 7px var(--glow), 0 0 4px 2px var(--glow); }
@@ -800,8 +825,14 @@ function render(){
   if(view === "loading"){
     root.innerHTML = `
     <div class="screen" style="align-items:center; justify-content:center; text-align:center; min-height:100vh;">
-      <div class="brand-mark spin-glow" style="width:60px; height:60px;"><i style="font-size:24px;">◈</i></div>
-      <p style="margin-top:16px; color:var(--text-secondary); font-family:var(--mono); font-size:13px;">загрузка штаба...</p>
+      <div class="radar-loader">
+        <div class="radar-ring"></div>
+        <div class="radar-ring" style="animation-delay:0.8s;"></div>
+        <div class="radar-ring" style="animation-delay:1.6s;"></div>
+        <div class="radar-orbit"><div class="radar-dot"></div></div>
+        <div class="radar-center"></div>
+      </div>
+      <p style="margin-top:18px; color:var(--text-secondary); font-family:var(--mono); font-size:13px;">загрузка штаба...</p>
     </div>`;
     return;
   }
