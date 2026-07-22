@@ -781,7 +781,14 @@ function initials(name){
 
 function render(){
   const root = document.getElementById("root");
-  if(view === "loading"){ root.innerHTML = ""; return; }
+  if(view === "loading"){
+    root.innerHTML = `
+    <div class="screen" style="align-items:center; justify-content:center; text-align:center; min-height:100vh;">
+      <div class="brand-mark spin-glow" style="width:60px; height:60px;"><i style="font-size:24px;">◈</i></div>
+      <p style="margin-top:16px; color:var(--text-secondary); font-family:var(--mono); font-size:13px;">загрузка штаба...</p>
+    </div>`;
+    return;
+  }
   if(view === "onboarding"){
     root.innerHTML = renderOnboarding();
     attachOnboardingEvents();
@@ -1558,6 +1565,36 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'confirmDeleteMission'){
+    const msn = state.missions.find(x=>x.id===modal.missionId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">удалить миссию?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          задание «${escapeHtml(msn?msn.title:'')}» будет удалено безвозвратно. это нельзя отменить.
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmDeleteMission">удалить</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'confirmDeleteReward'){
+    const r = state.rewards.find(x=>x.id===modal.rewardId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">удалить награду?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          награда «${escapeHtml(r?r.title:'')}» будет удалена из списка. это нельзя отменить.
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmDeleteReward">удалить</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDeleteRoom'){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
@@ -2043,12 +2080,12 @@ function attachEvents(){
     };
   });
   document.querySelectorAll('[data-delete-mission]').forEach(el=>{
-    el.onclick = async ()=>{
+    el.onclick = ()=>{
       const id = el.getAttribute('data-delete-mission');
       const msn = state.missions.find(x=>x.id===id);
       if(msn && msn.status==='approved') return;
-      state.missions = state.missions.filter(x=>x.id!==id);
-      await saveState(); render();
+      modal = {type:'confirmDeleteMission', missionId:id};
+      render();
     };
   });
   document.querySelectorAll('[data-approve]').forEach(el=>{
@@ -2100,9 +2137,9 @@ function attachEvents(){
     el.onclick = ()=>{ modal = {type:'pointsHistory', agentId: el.getAttribute('data-show-history')}; render(); };
   });
   document.querySelectorAll('[data-delete-reward]').forEach(el=>{
-    el.onclick = async ()=>{
-      state.rewards = state.rewards.filter(r=>r.id!==el.getAttribute('data-delete-reward'));
-      await saveState(); render();
+    el.onclick = ()=>{
+      modal = {type:'confirmDeleteReward', rewardId: el.getAttribute('data-delete-reward')};
+      render();
     };
   });
   document.querySelectorAll('[data-approve-request]').forEach(el=>{
@@ -2212,6 +2249,20 @@ function attachEvents(){
     const confirmDeleteBtn = document.getElementById('modalConfirmDelete');
     if(confirmDeleteBtn) confirmDeleteBtn.onclick = async ()=>{
       await deleteAgentById(modal.agentId);
+      modal=null; render();
+    };
+
+    const confirmDeleteMissionBtn = document.getElementById('modalConfirmDeleteMission');
+    if(confirmDeleteMissionBtn) confirmDeleteMissionBtn.onclick = async ()=>{
+      state.missions = state.missions.filter(x=>x.id!==modal.missionId);
+      await saveState();
+      modal=null; render();
+    };
+
+    const confirmDeleteRewardBtn = document.getElementById('modalConfirmDeleteReward');
+    if(confirmDeleteRewardBtn) confirmDeleteRewardBtn.onclick = async ()=>{
+      state.rewards = state.rewards.filter(r=>r.id!==modal.rewardId);
+      await saveState();
       modal=null; render();
     };
 
@@ -2399,6 +2450,7 @@ function scrollChatBottom(){
 
 /* ---------- INIT ---------- */
 (async function init(){
+  render();
   await loadTheme();
   loadRoomId();
   let seenOnboarding = false;
