@@ -59,6 +59,28 @@
     font-family:var(--mono); font-size:17px; font-weight:700; color:var(--text);
   }
   .safe-key:active{ background:var(--accent-tint); border-color:var(--accent); }
+  .memory-card{
+    aspect-ratio:1; border-radius:10px; background:var(--panel-alt); border:1px solid var(--border-strong);
+    display:flex; align-items:center; justify-content:center; font-size:24px; cursor:pointer; transition:transform .15s;
+  }
+  .memory-card.revealed, .memory-card.matched{ background:var(--accent-tint); border-color:var(--accent); }
+  .memory-card.matched{ opacity:0.55; }
+  .anagram-tile{
+    width:42px; height:48px; border-radius:8px; background:var(--panel-alt); border:1px solid var(--border-strong);
+    display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:700; font-family:var(--mono); cursor:pointer;
+  }
+  .anagram-tile.used{ opacity:0.25; pointer-events:none; }
+  .anagram-slot{
+    width:42px; height:48px; border-radius:8px; background:var(--panel); border:1px dashed var(--border-strong);
+    display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:700; font-family:var(--mono); color:var(--accent-ink);
+  }
+  .reaction-arena{
+    position:relative; width:100%; height:280px; border-radius:14px; background:var(--panel-alt); border:1px solid var(--border-strong); overflow:hidden;
+  }
+  .reaction-signal{
+    position:absolute; width:52px; height:52px; border-radius:50%; background:var(--accent); box-shadow:0 0 18px 4px var(--glow);
+    transform:translate(-50%,-50%); cursor:pointer;
+  }
 
   @keyframes toastIn{ from{ opacity:0; transform:translateY(-16px) scale(0.95);} to{ opacity:1; transform:translateY(0) scale(1);} }
   @keyframes toastOut{ from{ opacity:1; transform:translateY(0) scale(1);} to{ opacity:0; transform:translateY(-12px) scale(0.95);} }
@@ -372,6 +394,79 @@ function safeGameFeedback(guess, secret){
     if(idx!==-1){ used[idx]=true; white++; }
   });
   return { black, white };
+}
+
+// ---------- Memory match game ----------
+let memoryGame = null;
+function startMemoryGame(){
+  const symbols = ['🔍','🔒','📡','🕵️','🎯','📷'];
+  let cards = [];
+  symbols.forEach(s=>{ cards.push({symbol:s}); cards.push({symbol:s}); });
+  for(let i=cards.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
+  cards = cards.map((c,i)=>({ id:i, symbol:c.symbol, revealed:false, matched:false }));
+  memoryGame = { cards, firstPick:null, moves:0, busy:false };
+}
+
+// ---------- Cipher game ----------
+const CIPHER_ALPHABET = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
+const CIPHER_PHRASES = ['ШТАБ НА СВЯЗИ','МИССИЯ ПРИНЯТА','АГЕНТ НА МЕСТЕ','СОВЕРШЕННО СЕКРЕТНО','ОПЕРАЦИЯ ЗАВЕРШЕНА','ВСЕ СИСТЕМЫ В НОРМЕ'];
+function caesarShift(text, shift){
+  const n = CIPHER_ALPHABET.length;
+  return text.split('').map(ch=>{
+    const idx = CIPHER_ALPHABET.indexOf(ch);
+    if(idx===-1) return ch;
+    const newIdx = ((idx+shift)%n+n)%n;
+    return CIPHER_ALPHABET[newIdx];
+  }).join('');
+}
+let cipherGame = null;
+function startCipherGame(){
+  const phrase = CIPHER_PHRASES[Math.floor(Math.random()*CIPHER_PHRASES.length)];
+  const secretShift = 1 + Math.floor(Math.random()*(CIPHER_ALPHABET.length-1));
+  const encoded = caesarShift(phrase, secretShift);
+  cipherGame = { phrase, encoded, guessShift:0, solved:false };
+}
+
+// ---------- Anagram game ----------
+const ANAGRAM_WORDS = ['РАЗВЕДКА','МАСКИРОВКА','СЕКРЕТ','ШПИОН','МИССИЯ','ШТАБ','ДИРЕКТОР','ПАРОЛЬ','КОДЕКС','АГЕНТ'];
+let anagramGame = null;
+function startAnagramGame(){
+  const word = ANAGRAM_WORDS[Math.floor(Math.random()*ANAGRAM_WORDS.length)];
+  let letters = word.split('').map((ch,i)=>({ ch, id:i, used:false }));
+  for(let i=letters.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [letters[i],letters[j]]=[letters[j],letters[i]]; }
+  anagramGame = { word, letters, answer:[], solved:false };
+}
+
+// ---------- Reaction game ----------
+let reactionGame = null;
+function startReactionGame(){
+  reactionGame = { round:0, maxRounds:5, times:[], signalVisible:false, signalPos:null, startTime:null, finished:false };
+  scheduleNextSignal();
+}
+function scheduleNextSignal(){
+  if(!reactionGame) return;
+  if(reactionGame.round >= reactionGame.maxRounds){
+    reactionGame.finished = true;
+    if(modal && modal.type==='reactionGame') render();
+    return;
+  }
+  reactionGame.signalVisible = false;
+  if(modal && modal.type==='reactionGame') render();
+  setTimeout(()=>{
+    if(!reactionGame) return;
+    reactionGame.signalPos = { x: 12+Math.random()*70, y: 12+Math.random()*70 };
+    reactionGame.signalVisible = true;
+    reactionGame.startTime = Date.now();
+    if(modal && modal.type==='reactionGame') render();
+    reactionGame.missTimer = setTimeout(()=>{
+      if(reactionGame && reactionGame.signalVisible){
+        reactionGame.signalVisible = false;
+        reactionGame.times.push(null);
+        reactionGame.round++;
+        scheduleNextSignal();
+      }
+    }, 750);
+  }, 700 + Math.random()*1300);
 }
 
 function showToast(text, durationMs){
@@ -1288,6 +1383,10 @@ function renderHome(){
         <div class="seal-sm" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">📖</div>
         <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">правила</span>
       </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-games-hub="1" aria-label="мини-игры">
+        <div class="seal-sm" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">🎮</div>
+        <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">игры</span>
+      </div>
       <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-theme="1" aria-label="сменить цвет темы">
         <div class="seal-sm" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">🎨</div>
         <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">цвет</span>
@@ -1704,6 +1803,150 @@ function renderModal(){
         <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
         <div class="btn-row" style="margin-top:14px">
           <button id="modalCancel">${modal.returnTo ? '← назад' : 'закрыть'}</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'memoryGame'){
+    if(!memoryGame) startMemoryGame();
+    const allMatched = memoryGame.cards.every(c=>c.matched);
+    if(allMatched){
+      return `<div class="modal-overlay" id="modalOverlay">
+        <div class="modal-sheet" style="text-align:center;">
+          <div style="font-size:44px; margin-bottom:8px;">🧠</div>
+          <div class="modal-title">все пары найдены!</div>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">получилось за ${memoryGame.moves} ходов</p>
+          <div class="btn-row">
+            <button id="modalCancel">закрыть</button>
+            <button class="btn-primary glow-btn" data-restart-game="memoryGame">играть ещё раз</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">🧠 найди пару</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">ходов: ${memoryGame.moves}</p>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
+          ${memoryGame.cards.map(c=>`
+            <div class="memory-card ${c.matched?'matched':(c.revealed?'revealed':'')}" data-memory-card="${c.id}">${(c.revealed||c.matched)?c.symbol:'❔'}</div>
+          `).join('')}
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'cipherGame'){
+    if(!cipherGame) startCipherGame();
+    const preview = caesarShift(cipherGame.encoded, -cipherGame.guessShift);
+    const solved = preview === cipherGame.phrase;
+    if(solved) cipherGame.solved = true;
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet" style="text-align:center;">
+        <div class="modal-title">🔤 шифр Цезаря</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">подберите сдвиг, чтобы прочитать сообщение</p>
+        <div style="font-family:var(--mono); font-size:15px; letter-spacing:1px; background:var(--panel-alt); border-radius:8px; padding:12px; margin-bottom:10px;">${escapeHtml(cipherGame.encoded)}</div>
+        ${solved ? `
+          <div style="background:var(--accent-tint); border-radius:8px; padding:14px; margin-bottom:6px;">
+            <div style="font-size:13px; color:var(--accent-ink); font-weight:700; margin-bottom:4px;">✅ расшифровано!</div>
+            <div style="font-family:var(--mono); font-size:16px; font-weight:700;">${escapeHtml(cipherGame.phrase)}</div>
+          </div>
+          <button class="btn-primary btn-block glow-btn" style="margin-top:8px" data-restart-game="cipherGame">новое сообщение</button>
+        ` : `
+          <div style="font-family:var(--mono); font-size:16px; letter-spacing:1px; color:var(--text-secondary); min-height:24px; margin-bottom:14px;">${escapeHtml(preview)}</div>
+          <div class="btn-row">
+            <button id="cipherMinus">− сдвиг</button>
+            <div style="display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-weight:700; font-size:18px; min-width:40px;">${cipherGame.guessShift}</div>
+            <button id="cipherPlus">+ сдвиг</button>
+          </div>
+        `}
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'anagramGame'){
+    if(!anagramGame) startAnagramGame();
+    const solved = anagramGame.answer.map(a=>a.ch).join('') === anagramGame.word && anagramGame.answer.length===anagramGame.word.length;
+    if(solved) anagramGame.solved = true;
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet" style="text-align:center;">
+        <div class="modal-title">🔡 собери слово</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">${anagramGame.word.length} букв · шпионская тематика</p>
+        <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-bottom:16px;">
+          ${anagramGame.word.split('').map((_,i)=>`<div class="anagram-slot">${anagramGame.answer[i] ? anagramGame.answer[i].ch : ''}</div>`).join('')}
+        </div>
+        ${solved ? `
+          <div style="background:var(--accent-tint); border-radius:8px; padding:12px; margin-bottom:12px; color:var(--accent-ink); font-weight:700;">✅ верно, агент!</div>
+          <button class="btn-primary btn-block glow-btn" data-restart-game="anagramGame">новое слово</button>
+        ` : `
+          <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-bottom:10px;">
+            ${anagramGame.letters.map(l=>`<div class="anagram-tile ${l.used?'used':''}" data-anagram-letter="${l.id}">${l.ch}</div>`).join('')}
+          </div>
+          <button class="btn-ghost-sm" id="anagramRemoveLast">⌫ убрать последнюю</button>
+        `}
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'reactionGame'){
+    if(!reactionGame) startReactionGame();
+    if(reactionGame.finished){
+      const hits = reactionGame.times.filter(t=>t!==null);
+      const avg = hits.length ? Math.round(hits.reduce((s,t)=>s+t,0)/hits.length) : null;
+      return `<div class="modal-overlay" id="modalOverlay">
+        <div class="modal-sheet" style="text-align:center;">
+          <div style="font-size:44px; margin-bottom:8px;">⚡</div>
+          <div class="modal-title">раунды окончены</div>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:6px;">поймано: ${hits.length} из ${reactionGame.maxRounds}</p>
+          ${avg ? `<p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">средняя реакция: ${avg} мс</p>` : ''}
+          <div class="btn-row">
+            <button id="modalCancel">закрыть</button>
+            <button class="btn-primary glow-btn" data-restart-game="reactionGame">играть ещё раз</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">⚡ лови сигнал</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">раунд ${reactionGame.round+1} из ${reactionGame.maxRounds} · тапни по кругу, пока не погас</p>
+        <div class="reaction-arena">
+          ${reactionGame.signalVisible ? `<div class="reaction-signal" style="left:${reactionGame.signalPos.x}%; top:${reactionGame.signalPos.y}%;" data-reaction-signal="1"></div>` : ''}
+        </div>
+        <div class="btn-row" style="margin-top:14px">
+          <button id="modalCancel">закрыть</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(modal.type === 'gamesHub'){
+    const games = [
+      { type:'memoryGame', icon:'🧠', title:'найди пару', desc:'переверни карточки и найди все пары' },
+      { type:'cipherGame', icon:'🔤', title:'шифр Цезаря', desc:'подбери сдвиг и расшифруй сообщение' },
+      { type:'anagramGame', icon:'🔡', title:'собери слово', desc:'составь слово из перемешанных букв' },
+      { type:'reactionGame', icon:'⚡', title:'лови сигнал', desc:'тапни по сигналу, пока он не погас' }
+    ];
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">🎮 мини-игры</div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">просто для развлечения, без очков</p>
+        ${games.map(g=>`
+          <div class="choice-card" style="cursor:pointer;" data-launch-game="${g.type}">
+            <div class="seal" style="background:var(--accent-tint); color:var(--accent-ink); font-size:20px;">${g.icon}</div>
+            <div style="flex:1; min-width:0;">
+              <div class="choice-name">${g.title}</div>
+              <div class="choice-sub" style="font-family:var(--sans); text-transform:none; letter-spacing:0;">${g.desc}</div>
+            </div>
+          </div>
+        `).join('')}
+        <div class="btn-row" style="margin-top:6px">
+          <button id="modalCancel">закрыть</button>
         </div>
       </div>
     </div>`;
@@ -2358,6 +2601,17 @@ function attachEvents(){
       }
     };
   });
+  document.querySelectorAll('[data-launch-game]').forEach(el=>{
+    el.onclick = ()=>{
+      const type = el.getAttribute('data-launch-game');
+      if(type==='memoryGame') startMemoryGame();
+      if(type==='cipherGame') startCipherGame();
+      if(type==='anagramGame') startAnagramGame();
+      if(type==='reactionGame') startReactionGame();
+      modal = {type};
+      render();
+    };
+  });
   document.querySelectorAll('[data-play-safe]').forEach(el=>{
     el.onclick = ()=>{
       const missionId = el.getAttribute('data-play-safe');
@@ -2503,6 +2757,8 @@ function attachEvents(){
   if(themeBtn) themeBtn.onclick = ()=>{ modal = {type:'theme'}; render(); };
   const rulesBtn = document.querySelector('[data-open-rules]');
   if(rulesBtn) rulesBtn.onclick = ()=>{ modal = {type:'rules'}; render(); };
+  const gamesHubBtn = document.querySelector('[data-open-games-hub]');
+  if(gamesHubBtn) gamesHubBtn.onclick = ()=>{ modal = {type:'gamesHub'}; render(); };
   const newChatBtn = document.querySelector('[data-open-newchat]');
   if(newChatBtn) newChatBtn.onclick = ()=>{ modal = {type:'newChat'}; render(); };
   const newMissionBtn = document.getElementById('newMissionBtn');
@@ -2790,6 +3046,89 @@ function attachEvents(){
       startSafeGame(modal.missionId);
       render();
     };
+
+    document.querySelectorAll('[data-memory-card]').forEach(el=>{
+      el.onclick = ()=>{
+        if(!memoryGame || memoryGame.busy) return;
+        const id = parseInt(el.getAttribute('data-memory-card'));
+        const card = memoryGame.cards.find(c=>c.id===id);
+        if(!card || card.revealed || card.matched) return;
+        card.revealed = true;
+        if(memoryGame.firstPick===null){
+          memoryGame.firstPick = id;
+          render();
+        } else {
+          memoryGame.moves++;
+          const first = memoryGame.cards.find(c=>c.id===memoryGame.firstPick);
+          render();
+          if(first.symbol === card.symbol){
+            first.matched = true; card.matched = true;
+            memoryGame.firstPick = null;
+            render();
+          } else {
+            memoryGame.busy = true;
+            setTimeout(()=>{
+              first.revealed = false; card.revealed = false;
+              memoryGame.firstPick = null;
+              memoryGame.busy = false;
+              if(modal && modal.type==='memoryGame') render();
+            }, 800);
+          }
+        }
+      };
+    });
+
+    const cipherMinus = document.getElementById('cipherMinus');
+    if(cipherMinus) cipherMinus.onclick = ()=>{
+      cipherGame.guessShift = (cipherGame.guessShift - 1 + CIPHER_ALPHABET.length) % CIPHER_ALPHABET.length;
+      render();
+    };
+    const cipherPlus = document.getElementById('cipherPlus');
+    if(cipherPlus) cipherPlus.onclick = ()=>{
+      cipherGame.guessShift = (cipherGame.guessShift + 1) % CIPHER_ALPHABET.length;
+      render();
+    };
+
+    document.querySelectorAll('[data-anagram-letter]').forEach(el=>{
+      el.onclick = ()=>{
+        const id = parseInt(el.getAttribute('data-anagram-letter'));
+        const letter = anagramGame.letters.find(l=>l.id===id);
+        if(!letter || letter.used) return;
+        letter.used = true;
+        anagramGame.answer.push({ ch:letter.ch, fromId:id });
+        render();
+      };
+    });
+    const anagramRemoveLast = document.getElementById('anagramRemoveLast');
+    if(anagramRemoveLast) anagramRemoveLast.onclick = ()=>{
+      const last = anagramGame.answer.pop();
+      if(last){ const letter = anagramGame.letters.find(l=>l.id===last.fromId); if(letter) letter.used=false; }
+      render();
+    };
+
+    document.querySelectorAll('[data-reaction-signal]').forEach(el=>{
+      el.onclick = ()=>{
+        if(!reactionGame || !reactionGame.signalVisible) return;
+        if(reactionGame.missTimer) clearTimeout(reactionGame.missTimer);
+        const rt = Date.now() - reactionGame.startTime;
+        reactionGame.times.push(rt);
+        reactionGame.signalVisible = false;
+        reactionGame.round++;
+        render();
+        scheduleNextSignal();
+      };
+    });
+
+    document.querySelectorAll('[data-restart-game]').forEach(el=>{
+      el.onclick = ()=>{
+        const type = el.getAttribute('data-restart-game');
+        if(type==='memoryGame') startMemoryGame();
+        if(type==='cipherGame') startCipherGame();
+        if(type==='anagramGame') startAnagramGame();
+        if(type==='reactionGame') startReactionGame();
+        render();
+      };
+    });
 
     const applyAdjust = document.getElementById('modalApplyAdjust');
     if(applyAdjust) applyAdjust.onclick = async ()=>{
