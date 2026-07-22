@@ -89,9 +89,13 @@
   .theme-swatch{ width:40px; height:40px; border-radius:50%; border:2px solid var(--border-strong); cursor:pointer; flex-shrink:0; box-shadow:0 0 12px 1px currentColor, inset 0 0 0 1px rgba(255,255,255,0.15); }
   .theme-swatch.active{ border-color:var(--text); box-shadow:0 0 16px 3px currentColor, inset 0 0 0 1px rgba(255,255,255,0.25); }
   .channel-open-panel{
-    flex:1; min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    position:relative; flex:1; min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
     background:var(--accent-tint); border:1px dashed var(--border-strong); border-radius:16px; cursor:pointer; padding:20px;
     text-align:center; transition:opacity .15s;
+  }
+  .channel-delete-btn{
+    position:absolute; top:10px; right:10px; background:var(--panel); border:1px solid var(--border-strong); color:var(--danger);
+    width:28px; height:28px; border-radius:50%; font-size:13px; padding:0; display:flex; align-items:center; justify-content:center;
   }
   .channel-open-panel:active{ opacity:0.75; }
   .channel-open-icon{
@@ -823,6 +827,12 @@ function render(){
   if(meCheck.pendingWarningAck && !modal){
     modal = { type:'warningPopup' };
   }
+  if(meCheck.pendingProposalDecline){
+    const info = meCheck.pendingProposalDecline;
+    showToast(`❌ директор отклонил торг по «${info.title}» (предлагали ${info.points})`);
+    meCheck.pendingProposalDecline = null;
+    saveState();
+  }
 
   let body = "";
   if(view === "home") body = renderHome();
@@ -1258,6 +1268,7 @@ function renderChannelList(m){
     }
     return `
     <div class="channel-open-panel" data-open-channel="${c.id}">
+      ${c.type!=='family' ? `<button class="channel-delete-btn" data-delete-channel="${c.id}" aria-label="удалить канал">✕</button>` : ''}
       <div class="channel-open-icon spin-glow">${c.type==='family'?'◈':(c.type==='group'?'✦':'◆')}</div>
       <div class="channel-open-title">${escapeHtml(name)}</div>
       <div class="channel-open-sub">${c.type==='family'?'вся семья':(c.type==='group'?'группа':'личный канал')} · нажмите, чтобы открыть переписку</div>
@@ -1292,7 +1303,7 @@ function missionCardHtml(msn, showDelete){
           </div>` : ''}
       </div>` : ''}
     ${canMarkDone ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-mark-done="${msn.id}">отметить выполненным</button>` : ''}
-    ${canPropose ? `<button class="btn-ghost-sm btn-block" style="margin-top:8px" data-negotiate-mission="${msn.id}">💬 предложить другую награду</button>` : ''}
+    ${canPropose ? `<button class="btn-ghost-sm btn-block" style="margin-top:8px" data-negotiate-mission="${msn.id}">💬 торг</button>` : ''}
     ${canRetry ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-retry-mission="${msn.id}">исправить и отправить снова</button>` : ''}
     ${canPlayBonus ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-play-safe="${msn.id}">🔓 взломать сейф — бонусные очки!</button>` : ''}
     ${showDelete && msn.status!=='approved' ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}">удалить миссию</button>` : ''}
@@ -1676,6 +1687,22 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'confirmDeleteChannel'){
+    const ch = state.channels.find(x=>x.id===modal.channelId);
+    const name = ch ? channelDisplayName(ch, myAgentId) : '';
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">удалить канал?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          канал «${escapeHtml(name)}» и вся переписка в нём будут удалены безвозвратно${ch && ch.type==='group' ? ' для всех участников' : ''}. это нельзя отменить.
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmDeleteChannel">удалить</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDeleteReward'){
     const r = state.rewards.find(x=>x.id===modal.rewardId);
     return `<div class="modal-overlay" id="modalOverlay">
@@ -1984,7 +2011,7 @@ function renderModal(){
     const msn = state.missions.find(x=>x.id===modal.missionId);
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
-        <div class="modal-title">предложить другую награду</div>
+        <div class="modal-title">торг за награду</div>
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">сейчас за «${escapeHtml(msn?msn.title:'')}» — ${msn?msn.points:0} очков</p>
         <label class="field-label">сколько очков предложить</label>
         <input id="proposedPoints" type="number" min="1" value="${msn?msn.points:10}"/>
@@ -2135,6 +2162,13 @@ function attachEvents(){
   document.querySelectorAll('[data-open-channel]').forEach(el=>{
     el.onclick = ()=>{ activeChannelId = el.getAttribute('data-open-channel'); view='chat'; render(); setTimeout(scrollChatBottom,0); };
   });
+  document.querySelectorAll('[data-delete-channel]').forEach(el=>{
+    el.onclick = (e)=>{
+      e.stopPropagation();
+      modal = {type:'confirmDeleteChannel', channelId: el.getAttribute('data-delete-channel')};
+      render();
+    };
+  });
   document.querySelectorAll('[data-mark-done]').forEach(el=>{
     el.onclick = async ()=>{
       const id = el.getAttribute('data-mark-done');
@@ -2162,6 +2196,10 @@ function attachEvents(){
     el.onclick = async ()=>{
       const msn = state.missions.find(x=>x.id===el.getAttribute('data-decline-proposal'));
       if(msn){
+        const proposerAgent = agentById(msn.proposedBy);
+        if(proposerAgent){
+          proposerAgent.pendingProposalDecline = { title: msn.title, points: msn.proposedPoints };
+        }
         msn.proposalStatus = null;
         msn.proposedPoints = null;
         msn.proposalReason = '';
@@ -2422,6 +2460,14 @@ function attachEvents(){
     const confirmDeleteRewardBtn = document.getElementById('modalConfirmDeleteReward');
     if(confirmDeleteRewardBtn) confirmDeleteRewardBtn.onclick = async ()=>{
       state.rewards = state.rewards.filter(r=>r.id!==modal.rewardId);
+      await saveState();
+      modal=null; render();
+    };
+
+    const confirmDeleteChannelBtn = document.getElementById('modalConfirmDeleteChannel');
+    if(confirmDeleteChannelBtn) confirmDeleteChannelBtn.onclick = async ()=>{
+      state.channels = state.channels.filter(c=>c.id!==modal.channelId);
+      delete state.messages[modal.channelId];
       await saveState();
       modal=null; render();
     };
