@@ -321,8 +321,15 @@ function startSafeGame(missionId){
     if(Date.now() >= safeGame.deadline){
       safeGame.exploded = true;
       clearInterval(safeGameTimerHandle); safeGameTimerHandle = null;
+      if(modal && modal.type==='safeGame') render();
+      return;
     }
-    if(modal && modal.type==='safeGame') render();
+    const timerEl = document.getElementById('safeTimerDisplay');
+    if(timerEl){
+      const secondsLeft = Math.max(0, Math.ceil((safeGame.deadline - Date.now())/1000));
+      timerEl.textContent = '⏱ ' + secondsLeft + ' сек';
+      timerEl.style.color = secondsLeft<=10 ? 'var(--danger)' : 'var(--accent-ink)';
+    }
   }, 1000);
 }
 function safeGameFeedback(guess, secret){
@@ -342,15 +349,16 @@ function safeGameFeedback(guess, secret){
   return { black, white };
 }
 
-function showToast(text){
+function showToast(text, durationMs){
   const container = document.getElementById('toastContainer');
   if(!container) return;
+  const dur = durationMs || 2500;
   const el = document.createElement('div');
   el.className = 'toast-item';
   el.textContent = text;
   container.appendChild(el);
-  setTimeout(()=>{ el.classList.add('toast-out'); }, 2500);
-  setTimeout(()=>{ el.remove(); }, 2900);
+  setTimeout(()=>{ el.classList.add('toast-out'); }, dur);
+  setTimeout(()=>{ el.remove(); }, dur + 400);
 }
 window.addEventListener('error', (e)=>{ showError(e.message + ' (' + (e.filename||'') + ':' + (e.lineno||'') + ')'); });
 window.addEventListener('unhandledrejection', (e)=>{ showError((e.reason && e.reason.message) ? e.reason.message : String(e.reason)); });
@@ -829,7 +837,7 @@ function render(){
   }
   if(meCheck.pendingProposalDecline){
     const info = meCheck.pendingProposalDecline;
-    showToast(`❌ директор отклонил торг по «${info.title}» (предлагали ${info.points})`);
+    showToast(`❌ директор отклонил торг по «${info.title}» (предлагали ${info.points})`, 7000);
     meCheck.pendingProposalDecline = null;
     saveState();
   }
@@ -1303,7 +1311,7 @@ function missionCardHtml(msn, showDelete){
           </div>` : ''}
       </div>` : ''}
     ${canMarkDone ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-mark-done="${msn.id}">отметить выполненным</button>` : ''}
-    ${canPropose ? `<button class="btn-ghost-sm btn-block" style="margin-top:8px" data-negotiate-mission="${msn.id}">💬 торг</button>` : ''}
+    ${canPropose ? `<button class="btn-block" style="margin-top:8px; padding:13px 0; font-size:15px; font-weight:600; border-color:var(--amber); color:var(--amber-ink);" data-negotiate-mission="${msn.id}">💬 торг</button>` : ''}
     ${canRetry ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-retry-mission="${msn.id}">исправить и отправить снова</button>` : ''}
     ${canPlayBonus ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-play-safe="${msn.id}">🔓 взломать сейф — бонусные очки!</button>` : ''}
     ${showDelete && msn.status!=='approved' ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}">удалить миссию</button>` : ''}
@@ -1618,10 +1626,17 @@ function renderModal(){
       <div class="modal-sheet">
         <div style="display:flex; align-items:center; justify-content:space-between;">
           <div class="modal-title" style="margin-bottom:0;">🔓 взлом сейфа</div>
-          <div style="font-family:var(--mono); font-size:18px; font-weight:700; color:${secondsLeft<=10?'var(--danger)':'var(--accent-ink)'};">⏱ ${secondsLeft} сек</div>
+          <div id="safeTimerDisplay" style="font-family:var(--mono); font-size:18px; font-weight:700; color:${secondsLeft<=10?'var(--danger)':'var(--accent-ink)'};">⏱ ${secondsLeft} сек</div>
         </div>
         <p style="font-size:13px; color:var(--text-secondary); margin:8px 0 4px;">бонус за миссию «${escapeHtml(msn?msn.title:'')}»</p>
         <p class="btn-caption" style="margin-top:0;">код каждый раз новый — 4 цифры. ● — цифра угадана и стоит на месте, ○ — цифра есть, но не там</p>
+        ${safeGame.guesses.length>0 ? (()=>{
+          const last = safeGame.guesses[safeGame.guesses.length-1];
+          return `<div style="background:var(--panel-alt); border:2px solid var(--accent); border-radius:10px; padding:12px; margin-bottom:10px; text-align:center;">
+            <div style="font-size:11px; color:var(--text-muted); font-family:var(--mono); text-transform:uppercase; margin-bottom:4px;">последняя попытка: ${last.guess.join(' ')}</div>
+            <div style="font-size:24px; letter-spacing:4px;"><span style="color:var(--accent-ink);">${'●'.repeat(last.black)}</span><span style="color:var(--text-muted);">${'○'.repeat(last.white)}</span>${last.black===0 && last.white===0 ? '<span style="font-size:14px; color:var(--text-muted);">ничего не угадано</span>':''}</div>
+          </div>`;
+        })() : ''}
         <div style="display:flex; gap:8px; justify-content:center; margin:14px 0;">${slots}</div>
         <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:8px;">${keypad}</div>
         <div class="btn-row" style="margin-top:12px;">
