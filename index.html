@@ -2055,7 +2055,7 @@ function renderModal(){
   }
   if(modal.type === 'shareOptions'){
     const code = modal.code;
-    const text = encodeURIComponent(`Присоединяйся к нашему секретному штабу! Личный номер: ${code}`);
+    const text = encodeURIComponent(`Присоединяйся к нашему секретному штабу Neiro-Max! Личный номер: ${code}`);
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">отправить личный номер</div>
@@ -2063,6 +2063,10 @@ function renderModal(){
         <a href="sms:?body=${text}" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
           <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">📱</div>
           <div class="choice-name">СМС</div>
+        </a>
+        <a href="https://max.ru/:share?text=${text}" target="_blank" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
+          <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink); font-weight:700;">M</div>
+          <div class="choice-name">MAX</div>
         </a>
         <a href="https://wa.me/?text=${text}" target="_blank" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
           <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">💬</div>
