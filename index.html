@@ -885,13 +885,13 @@ async function respondToRequest(channelId, approve){
 function normalizeState(val){
   const d = defaultState();
   const v = val || {};
-  const channels = (Array.isArray(v.channels) ? v.channels : d.channels).map(c=>({
+  const channels = (Array.isArray(v.channels) ? v.channels : d.channels).filter(c=>c && typeof c==='object').map(c=>({
     type: c.type || (c.members==='all' ? 'family' : 'personal'),
     status: c.status || 'active',
     ...c
   }));
-  const rewards = Array.isArray(v.rewards) ? v.rewards : d.rewards;
-  let rewardRequests = Array.isArray(v.rewardRequests) ? v.rewardRequests.slice() : [];
+  const rewards = (Array.isArray(v.rewards) ? v.rewards : d.rewards).filter(r=>r && typeof r==='object');
+  let rewardRequests = (Array.isArray(v.rewardRequests) ? v.rewardRequests.slice() : []).filter(rq=>rq && typeof rq==='object');
   // migrate legacy single-use reward fields (redeemedBy/requestedBy/status on the reward itself) into rewardRequests
   rewards.forEach(r=>{
     if(r.redeemedBy && !rewardRequests.some(rq=>rq.rewardId===r.id && rq.agentId===r.redeemedBy && rq.status==='approved')){
@@ -901,18 +901,18 @@ function normalizeState(val){
     }
     delete r.redeemedBy; delete r.requestedBy; delete r.status; delete r.redeemedAt;
   });
-  const agents = (Array.isArray(v.agents) ? v.agents : d.agents).map(a=>({
+  const agents = (Array.isArray(v.agents) ? v.agents : d.agents).filter(a=>a && typeof a==='object').map(a=>({
     warnings:0, blockedUntil:null, permanentlyBlocked:false, pendingWarningAck:false,
     ...a
   }));
   return {
     agents,
-    agentRequests: Array.isArray(v.agentRequests) ? v.agentRequests : d.agentRequests,
+    agentRequests: (Array.isArray(v.agentRequests) ? v.agentRequests : d.agentRequests).filter(r=>r && typeof r==='object'),
     channels,
-    missions: Array.isArray(v.missions) ? v.missions : d.missions,
+    missions: (Array.isArray(v.missions) ? v.missions : d.missions).filter(m=>m && typeof m==='object'),
     rewards,
     rewardRequests,
-    adjustments: Array.isArray(v.adjustments) ? v.adjustments : d.adjustments,
+    adjustments: (Array.isArray(v.adjustments) ? v.adjustments : d.adjustments).filter(a=>a && typeof a==='object'),
     messages: (v.messages && typeof v.messages==='object') ? Object.assign({hq:[]}, v.messages) : d.messages
   };
 }
@@ -920,7 +920,12 @@ function normalizeState(val){
 async function loadState(){
   return new Promise((resolve)=>{
     roomRef('appState').once('value', snap=>{
-      state = normalizeState(snap.val());
+      try{
+        state = normalizeState(snap.val());
+      }catch(e){
+        showError('обработка данных штаба: ' + e.message);
+        state = defaultState();
+      }
       resolve();
     }, (err)=>{ showError('loadState: '+err.message); state = defaultState(); resolve(); });
   });
@@ -930,9 +935,13 @@ function watchState(){
   roomRef('appState').on('value', snap=>{
     const val = snap.val();
     if(val){
-      state = normalizeState(val);
-      const inCanvasGame = modal && (modal.type==='snakeGame' || modal.type==='tetrisGame') && ((snakeGame&&!snakeGame.gameOver) || (tetrisGame&&!tetrisGame.gameOver));
-      if(view!=='loading' && myAgentId && !inCanvasGame){ render(); }
+      try{
+        state = normalizeState(val);
+        const inCanvasGame = modal && (modal.type==='snakeGame' || modal.type==='tetrisGame') && ((snakeGame&&!snakeGame.gameOver) || (tetrisGame&&!tetrisGame.gameOver));
+        if(view!=='loading' && myAgentId && !inCanvasGame){ render(); }
+      }catch(e){
+        showError('watchState (обработка данных): ' + e.message);
+      }
     }
   }, err=>{ showError('watchState: '+err.message); });
 }
