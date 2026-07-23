@@ -906,6 +906,13 @@ function normalizeState(val){
     warnings:0, blockedUntil:null, permanentlyBlocked:false, pendingWarningAck:false,
     ...a
   }));
+  let seenDirector = false;
+  agents.forEach(a=>{
+    if(a.role==='director'){
+      if(seenDirector) a.role = 'agent';
+      else seenDirector = true;
+    }
+  });
   return {
     agents,
     agentRequests: Array.isArray(v.agentRequests) ? v.agentRequests : d.agentRequests,
@@ -946,9 +953,26 @@ async function saveState(){
 function loadMyId(){
   try{ myAgentId = localStorage.getItem(myIdKey()) || null; }catch(e){ myAgentId = null; }
 }
+function knownAgentsKey(){ return "hq_known_agents_" + roomId; }
+function getKnownAgentIds(){
+  try{
+    const raw = localStorage.getItem(knownAgentsKey());
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function addKnownAgentId(id){
+  try{
+    const ids = getKnownAgentIds();
+    if(!ids.includes(id)){
+      ids.push(id);
+      localStorage.setItem(knownAgentsKey(), JSON.stringify(ids));
+    }
+  }catch(e){}
+}
 function saveMyId(id){
   myAgentId = id;
   try{ localStorage.setItem(myIdKey(), id); }catch(e){}
+  addKnownAgentId(id);
 }
 
 let onlineIds = new Set();
@@ -1482,8 +1506,12 @@ function renderIdentity(){
     <h1>кто вы?</h1>
     <p class="lead">выберите свой позывной из списка, если вы уже зарегистрированы, или создайте нового агента.</p>
 
-    ${hasAgents ? `<h2>агенты в этом штабе</h2>
-      ${state.agents.map(a=>`
+    ${(()=>{
+      const knownIds = getKnownAgentIds();
+      const myKnownAgents = state.agents.filter(a=>knownIds.includes(a.id));
+      if(myKnownAgents.length===0) return '';
+      return `<h2>ваши позывные на этом устройстве</h2>
+      ${myKnownAgents.map(a=>`
         <div class="choice-card">
           <div class="seal" style="${sealStyle(a.color)}">${initials(a.name)}</div>
           <div style="flex:1; min-width:0;">
@@ -1496,7 +1524,8 @@ function renderIdentity(){
           </div>
         </div>
       `).join('')}
-      <p class="btn-caption">нажмите "войти", если это ваш позывной. "удалить" — если он создан по ошибке (действие необратимо)</p>` : ''}
+      <p class="btn-caption">показаны только позывные, под которыми вы уже входили с этого устройства. чужие агенты здесь не видны и недоступны для входа.</p>`;
+    })()}
 
     <h2>новый агент</h2>
     <label class="field-label">ваш позывной</label>
@@ -1504,9 +1533,9 @@ function renderIdentity(){
     <label class="field-label">роль</label>
     <select id="newAgentRole">
       <option value="agent">агент (ребёнок)</option>
-      <option value="director">директор (родитель)</option>
+      ${!hasAgents ? `<option value="director">директор (родитель)</option>` : ''}
     </select>
-    <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки</p>
+    <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки${hasAgents ? ' — роль директора теперь назначает только действующий директор в списке участников' : ''}</p>
     ${hasAgents ? `<p class="btn-caption" style="color:var(--amber-ink);">в этом штабе уже есть агенты — новую заявку должен подтвердить директор, прежде чем вы попадёте внутрь</p>` : ''}
     <button class="btn-primary btn-block" style="margin-top:4px" id="createAgentBtn">${hasAgents ? 'отправить заявку ↗' : 'создать удостоверение ↗'}</button>
   </div>`;
@@ -1615,8 +1644,11 @@ function renderHome(){
             </div>
             <div style="font-size:13px; flex:1; min-width:0;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}${statusNote}</span></div>
             ${showWarnBtns ? `
-              <button class="btn-ghost-sm" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger); flex-shrink:0;">⚠️</button>
-              ${(a.warnings>0 || a.blockedUntil || a.permanentlyBlocked) ? `<button class="btn-ghost-sm" data-pardon-agent="${a.id}" style="flex-shrink:0;">✅</button>` : ''}
+              <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
+                ${a.role!=='director' ? `<button class="btn-ghost-sm" data-transfer-director="${a.id}">передать права директора</button>` : ''}
+                <button class="btn-ghost-sm" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger);">⚠️ предупреждение</button>
+                ${(a.warnings>0 || a.blockedUntil || a.permanentlyBlocked) ? `<button class="btn-ghost-sm" data-pardon-agent="${a.id}">✅ помиловать</button>` : ''}
+              </div>
             ` : ''}
           </div>`;
         }).join('')}
@@ -2329,6 +2361,21 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'confirmTransferDirector'){
+    const agent = agentById(modal.agentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">передать права директора?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          в штабе может быть только один директор. если продолжите — «${escapeHtml(agent?agent.name:'')}» станет директором, а вы сами станете обычным агентом.
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmTransferDirector">передать права</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDeleteRoom'){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
@@ -2941,6 +2988,9 @@ function attachEvents(){
       render();
     };
   });
+  document.querySelectorAll('[data-transfer-director]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'confirmTransferDirector', agentId: el.getAttribute('data-transfer-director')}; render(); };
+  });
   document.querySelectorAll('[data-issue-warning]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'issueWarning', agentId: el.getAttribute('data-issue-warning')}; render(); };
   });
@@ -3182,6 +3232,19 @@ function attachEvents(){
 
     const deleteRoomBtn = document.getElementById('modalDeleteRoom');
     if(deleteRoomBtn) deleteRoomBtn.onclick = ()=>{ modal = {type:'confirmDeleteRoom'}; render(); };
+
+    const confirmTransferBtn = document.getElementById('modalConfirmTransferDirector');
+    if(confirmTransferBtn) confirmTransferBtn.onclick = async ()=>{
+      const target = agentById(modal.agentId);
+      const meNow = me();
+      if(target && meNow){
+        meNow.role = 'agent';
+        target.role = 'director';
+        await saveState();
+        showToast(`👑 ${target.name} теперь директор`);
+      }
+      modal = null; render();
+    };
 
     const confirmDeleteRoomBtn = document.getElementById('modalConfirmDeleteRoom');
     if(confirmDeleteRoomBtn) confirmDeleteRoomBtn.onclick = async ()=>{
