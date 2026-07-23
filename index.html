@@ -724,6 +724,8 @@ function wireCodeButtons(){
   if(shareBtn) shareBtn.onclick = ()=> shareCode(shareBtn.getAttribute('data-code'));
   const copyAgainBtn = document.getElementById('shareOptionsCopyAgain');
   if(copyAgainBtn) copyAgainBtn.onclick = ()=> copyCodeToClipboard(copyAgainBtn.getAttribute('data-code'), document.getElementById('copyFeedback'));
+  const copyAccessBtn = document.getElementById('copyAccessCodeBtn');
+  if(copyAccessBtn) copyAccessBtn.onclick = ()=> copyCodeToClipboard(copyAccessBtn.getAttribute('data-code'), document.getElementById('copyFeedback'));
 }
 
 let state = null;
@@ -1011,6 +1013,11 @@ function watchPresence(){
 
 function me(){ return state.agents.find(a => a.id === myAgentId) || null; }
 function agentById(id){ return state.agents.find(a => a.id === id); }
+function agentAccessCode(agent){
+  let hash = 0;
+  for(const ch of agent.id){ hash = (hash*31 + ch.charCodeAt(0)) % 1000000; }
+  return String(hash).padStart(6,'0');
+}
 function isDirector(){ const m = me(); return m && m.role === "director"; }
 
 async function deleteAgentById(id){
@@ -1526,6 +1533,13 @@ function renderIdentity(){
       `).join('')}
       <p class="btn-caption">показаны только позывные, под которыми вы уже входили с этого устройства. чужие агенты здесь не видны и недоступны для входа.</p>`;
     })()}
+
+    <h2>уже есть код доступа</h2>
+    <label class="field-label">код доступа к своему позывному</label>
+    <input id="accessCodeInput" placeholder="например: 042817" maxlength="6" inputmode="numeric"/>
+    <p class="btn-caption" style="margin-top:6px;">если вы уже регистрировались в этом штабе с другого устройства — впишите свой личный код доступа (он показан в вашем удостоверении), чтобы восстановить доступ здесь</p>
+    <button class="btn-block" style="margin-top:8px" id="accessCodeLoginBtn">войти по коду доступа</button>
+    <div id="accessCodeError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
 
     <h2>новый агент</h2>
     <label class="field-label">ваш позывной</label>
@@ -2415,6 +2429,10 @@ function renderModal(){
             <button class="btn-ghost-sm" id="shareRoomCodeBtn" data-code="${roomId}">отправить</button>
           </div>
           <div id="copyFeedback" style="font-size:12px; color:var(--accent-ink); height:16px; margin-top:4px;"></div>
+          <div class="id-card-label" style="margin-top:14px;">код доступа к вашему позывному</div>
+          <div style="font-family:var(--mono); font-size:20px; letter-spacing:3px; color:var(--amber-ink); margin-top:2px; user-select:text; -webkit-user-select:text;">${agentAccessCode(m)}</div>
+          <p style="font-size:12px; color:var(--text-secondary); margin-top:6px; line-height:1.4;">никому не показывайте этот код, кроме себя. используйте его, чтобы войти под этим же позывным с другого устройства — на экране "кто вы?" есть поле "уже есть код доступа"</p>
+          <button class="btn-ghost-sm" id="copyAccessCodeBtn" data-code="${agentAccessCode(m)}" style="margin-top:6px;">копировать код доступа</button>
         </div>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">закрыть</button>
@@ -2771,6 +2789,18 @@ function escapeHtml(s){
 /* ---------- EVENTS ---------- */
 
 function attachIdentityEvents(){
+  const accessCodeBtn = document.getElementById('accessCodeLoginBtn');
+  if(accessCodeBtn) accessCodeBtn.onclick = async ()=>{
+    const code = document.getElementById('accessCodeInput').value.trim();
+    const errEl = document.getElementById('accessCodeError');
+    if(!code){ if(errEl) errEl.textContent = 'впишите код доступа'; return; }
+    const found = state.agents.find(a=>agentAccessCode(a)===code);
+    if(!found){ if(errEl) errEl.textContent = 'код не найден — проверьте и попробуйте снова'; return; }
+    saveMyId(found.id);
+    await heartbeat();
+    view = 'home';
+    render();
+  };
   document.querySelectorAll('[data-select-agent]').forEach(el=>{
     el.onclick = async ()=>{
       saveMyId(el.getAttribute('data-select-agent'));
