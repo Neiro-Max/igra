@@ -663,6 +663,24 @@ function ensureAuth(){
   });
 }
 
+// Предохранитель от вечной загрузки: если сетевой запрос (например, к Firebase)
+// не завершается за отведённое время (плохая связь, временный сбой сервера,
+// заблокированный websocket на некоторых мобильных браузерах и т.п.), не
+// блокируем интерфейс навсегда, а продолжаем с тем, что есть.
+function withTimeout(promise, ms, warningMessage){
+  let timeoutId;
+  const timeout = new Promise(resolve=>{
+    timeoutId = setTimeout(()=>{
+      if(warningMessage) showError(warningMessage);
+      resolve('__timeout__');
+    }, ms);
+  });
+  return Promise.race([
+    Promise.resolve(promise).then(v=>{ clearTimeout(timeoutId); return v; }),
+    timeout
+  ]);
+}
+
 const STORAGE_KEY = "hq_state_v1";
 const MY_ID_KEY = "hq_my_agent_id";
 const ROOM_KEY = "hq_room_id";
@@ -1479,13 +1497,18 @@ function attachRoomEvents(){
 
 async function startRoomSession(){
   loadMyId();
-  await loadState();
-  await repairDirectorLock(); // синхронизирует директора со "слотом" — важно для комнат, созданных до этой защиты
+  await withTimeout(
+    loadState(),
+    9000,
+    'загрузка данных штаба занимает необычно много времени — проверьте интернет-соединение. приложение откроется с тем, что успело загрузиться.'
+  );
+  if(!state) state = defaultState(); // подстраховка, если loadState() не успела отработать до таймаута
+  await withTimeout(repairDirectorLock(), 5000, null);
   watchState();
   watchPresence();
   view = 'home';
   render();
-  await heartbeat();
+  heartbeat(); // не блокируем показ интерфейса ожиданием отклика сервера
 }
 
 function renderBlockedScreen(kind, until){
@@ -3625,7 +3648,7 @@ function scrollChatBottom(){
 /* ---------- INIT ---------- */
 (async function init(){
   render();
-  await ensureAuth();
+  await withTimeout(ensureAuth(), 6000, null);
   await loadTheme();
   loadRoomId();
   let seenOnboarding = false;
