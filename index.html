@@ -60,27 +60,31 @@
   }
   .safe-key:active{ background:var(--accent-tint); border-color:var(--accent); }
   .memory-card{
-    aspect-ratio:1; border-radius:10px; background:var(--panel-alt); border:1px solid var(--border-strong);
-    display:flex; align-items:center; justify-content:center; font-size:24px; cursor:pointer; transition:transform .15s;
+    aspect-ratio:1; border-radius:12px; background:var(--panel-alt); border:1px solid var(--border-strong);
+    display:flex; align-items:center; justify-content:center; font-size:28px; cursor:pointer; transition:transform .15s, background .2s, border-color .2s;
   }
   .memory-card.revealed, .memory-card.matched{ background:var(--accent-tint); border-color:var(--accent); }
   .memory-card.matched{ opacity:0.55; }
   .anagram-tile{
-    width:42px; height:48px; border-radius:8px; background:var(--panel-alt); border:1px solid var(--border-strong);
-    display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:700; font-family:var(--mono); cursor:pointer;
+    width:48px; height:54px; border-radius:10px; background:var(--panel-alt); border:1px solid var(--accent);
+    display:flex; align-items:center; justify-content:center; font-size:21px; font-weight:700; font-family:var(--mono); cursor:pointer;
+    color:var(--accent-ink);
   }
   .anagram-tile.used{ opacity:0.25; pointer-events:none; }
   .anagram-slot{
-    width:42px; height:48px; border-radius:8px; background:var(--panel); border:1px dashed var(--border-strong);
-    display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:700; font-family:var(--mono); color:var(--accent-ink);
+    width:48px; height:54px; border-radius:10px; background:var(--panel); border:1px dashed var(--border-strong);
+    display:flex; align-items:center; justify-content:center; font-size:21px; font-weight:700; font-family:var(--mono); color:var(--accent-ink);
   }
   .reaction-arena{
-    position:relative; width:100%; height:280px; border-radius:14px; background:var(--panel-alt); border:1px solid var(--border-strong); overflow:hidden;
+    position:relative; width:100%; height:340px; border-radius:16px; background:var(--panel-alt); border:1px solid var(--border-strong); overflow:hidden;
+    touch-action:manipulation;
   }
   .reaction-signal{
-    position:absolute; width:52px; height:52px; border-radius:50%; background:var(--accent); box-shadow:0 0 18px 4px var(--glow);
-    transform:translate(-50%,-50%); cursor:pointer;
+    position:absolute; width:66px; height:66px; border-radius:50%;
+    transform:translate(-50%,-50%); cursor:pointer; touch-action:manipulation;
+    animation: reactionPulse .55s ease-in-out infinite alternate;
   }
+  @keyframes reactionPulse{ from{ transform:translate(-50%,-50%) scale(0.9); } to{ transform:translate(-50%,-50%) scale(1.06); } }
 
   @keyframes toastIn{ from{ opacity:0; transform:translateY(-16px) scale(0.95);} to{ opacity:1; transform:translateY(0) scale(1);} }
   @keyframes toastOut{ from{ opacity:1; transform:translateY(0) scale(1);} to{ opacity:0; transform:translateY(-12px) scale(0.95);} }
@@ -204,6 +208,15 @@
   .btn-row{display:flex; gap:8px;}
   .btn-row button{flex:1;}
   .btn-ghost-sm{padding:6px 10px; font-size:12px; border-color:var(--border);}
+  .difficulty-btn{
+    display:flex; align-items:center; gap:12px; width:100%;
+    padding:13px 18px; border-radius:12px; border:1px solid var(--border-strong);
+    background:var(--panel-alt); color:var(--text); font-family:var(--sans);
+    font-size:15px; font-weight:500; cursor:pointer; text-align:left;
+  }
+  .difficulty-btn:active{ background:var(--accent-tint); border-color:var(--accent); }
+  .difficulty-dot{ width:14px; height:14px; min-width:14px; border-radius:50%; display:inline-block; }
+  .difficulty-label{ line-height:1; }
   .icon-action-btn{
     width:36px; height:36px; min-width:36px; padding:0; border-radius:50%;
     display:flex; align-items:center; justify-content:center; font-size:17px;
@@ -426,9 +439,9 @@ let memoryGame = null;
 function startMemoryGame(){
   const symbols = ['🔍','🔒','📡','🕵️','🎯','📷'];
   let cards = [];
-  symbols.forEach(s=>{ cards.push({symbol:s}); cards.push({symbol:s}); });
+  symbols.forEach((s,i)=>{ const color = SEAL_COLORS[i % SEAL_COLORS.length]; cards.push({symbol:s,color}); cards.push({symbol:s,color}); });
   for(let i=cards.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [cards[i],cards[j]]=[cards[j],cards[i]]; }
-  cards = cards.map((c,i)=>({ id:i, symbol:c.symbol, revealed:false, matched:false }));
+  cards = cards.map((c,i)=>({ id:i, symbol:c.symbol, color:c.color, revealed:false, matched:false }));
   memoryGame = { cards, firstPick:null, moves:0, busy:false };
 }
 
@@ -469,6 +482,7 @@ function placeSnakeFood(){
   do{ pos = {x:Math.floor(Math.random()*snakeGame.cols), y:Math.floor(Math.random()*snakeGame.rows)}; }
   while(snakeGame.snake.some(s=>s.x===pos.x && s.y===pos.y));
   snakeGame.food = pos;
+  snakeGame.foodColor = SEAL_COLORS[Math.floor(Math.random()*SEAL_COLORS.length)];
 }
 let snakeDifficulty = null; // 'easy' | 'medium' | 'hard' — выбирается один раз, сохраняется для повторных игр
 const SNAKE_BASE_SPEED = { easy:220, medium:160, hard:110 };
@@ -480,7 +494,7 @@ function startSnakeGame(difficulty){
   if(difficulty) snakeDifficulty = difficulty;
   const base = SNAKE_BASE_SPEED[snakeDifficulty || 'medium'];
   if(snakeGame && snakeGame.loopHandle) clearInterval(snakeGame.loopHandle);
-  snakeGame = { cols:14, rows:16, cellSize:18, snake:[{x:7,y:8},{x:6,y:8},{x:5,y:8}], dir:{x:1,y:0}, nextDir:{x:1,y:0}, score:0, level:1, baseInterval:base, gameOver:false, loopHandle:null, loopStarted:false };
+  snakeGame = { cols:14, rows:16, cellSize:24, snake:[{x:7,y:8},{x:6,y:8},{x:5,y:8}], dir:{x:1,y:0}, nextDir:{x:1,y:0}, score:0, level:1, baseInterval:base, gameOver:false, loopHandle:null, loopStarted:false };
   placeSnakeFood();
 }
 function setSnakeDir(dx,dy){
@@ -516,20 +530,46 @@ function snakeTick(){
   }
   drawSnakeCanvas();
 }
+function drawRoundedRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+  ctx.fill();
+}
 function drawSnakeCanvas(){
   const canvas = document.getElementById('snakeCanvas');
   if(!canvas || !snakeGame) return;
   const ctx = canvas.getContext('2d');
   const cs = snakeGame.cellSize;
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle = '#1B2226';
+  ctx.fillStyle = '#12181B';
   ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle = '#E8654A';
-  ctx.fillRect(snakeGame.food.x*cs+2, snakeGame.food.y*cs+2, cs-4, cs-4);
+  // едва заметная сетка для глубины
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for(let x=1;x<snakeGame.cols;x++){ ctx.beginPath(); ctx.moveTo(x*cs,0); ctx.lineTo(x*cs,canvas.height); ctx.stroke(); }
+  for(let y=1;y<snakeGame.rows;y++){ ctx.beginPath(); ctx.moveTo(0,y*cs); ctx.lineTo(canvas.width,y*cs); ctx.stroke(); }
+  // еда — светящийся кружок, цвет меняется при каждом появлении
+  const foodColor = snakeGame.foodColor || '#FF5A4E';
+  ctx.save();
+  ctx.shadowColor = foodColor; ctx.shadowBlur = 12;
+  ctx.fillStyle = foodColor;
+  ctx.beginPath();
+  ctx.arc(snakeGame.food.x*cs+cs/2, snakeGame.food.y*cs+cs/2, cs/2-2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+  // змейка — радужные скруглённые сегменты, голова светится ярче
   snakeGame.snake.forEach((s,i)=>{
-    ctx.globalAlpha = i===0 ? 1 : 0.8;
-    ctx.fillStyle = '#12C88E';
-    ctx.fillRect(s.x*cs+1, s.y*cs+1, cs-2, cs-2);
+    const color = SEAL_COLORS[i % SEAL_COLORS.length];
+    ctx.globalAlpha = i===0 ? 1 : 0.88;
+    ctx.fillStyle = color;
+    if(i===0){ ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 10; }
+    drawRoundedRect(ctx, s.x*cs+1, s.y*cs+1, cs-2, cs-2, i===0?7:5);
+    if(i===0) ctx.restore();
   });
   ctx.globalAlpha = 1;
   const scoreEl = document.getElementById('snakeScoreVal');
@@ -631,17 +671,24 @@ function drawTetrisCanvas(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.fillStyle = '#10161A';
   ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for(let x=1;x<tetrisGame.cols;x++){ ctx.beginPath(); ctx.moveTo(x*cs,0); ctx.lineTo(x*cs,canvas.height); ctx.stroke(); }
+  for(let y=1;y<tetrisGame.rows;y++){ ctx.beginPath(); ctx.moveTo(0,y*cs); ctx.lineTo(canvas.width,y*cs); ctx.stroke(); }
   for(let y=0;y<tetrisGame.rows;y++){
     for(let x=0;x<tetrisGame.cols;x++){
       if(tetrisGame.board[y][x]){
         ctx.fillStyle = tetrisGame.board[y][x];
-        ctx.fillRect(x*cs+1,y*cs+1,cs-2,cs-2);
+        drawRoundedRect(ctx, x*cs+1, y*cs+1, cs-2, cs-2, 4);
       }
     }
   }
   if(tetrisGame.current){
+    ctx.save();
+    ctx.shadowColor = tetrisGame.current.color; ctx.shadowBlur = 8;
     ctx.fillStyle = tetrisGame.current.color;
-    getTetrisCells(tetrisGame.current).forEach(c=>{ if(c.y>=0) ctx.fillRect(c.x*cs+1,c.y*cs+1,cs-2,cs-2); });
+    getTetrisCells(tetrisGame.current).forEach(c=>{ if(c.y>=0) drawRoundedRect(ctx, c.x*cs+1, c.y*cs+1, cs-2, cs-2, 4); });
+    ctx.restore();
   }
   const scoreEl = document.getElementById('tetrisScoreVal');
   if(scoreEl) scoreEl.textContent = tetrisGame.score;
@@ -652,23 +699,32 @@ function startTetrisGame(difficulty){
   if(difficulty) tetrisDifficulty = difficulty;
   const base = TETRIS_BASE_SPEED[tetrisDifficulty || 'medium'];
   if(tetrisGame && tetrisGame.loopHandle) clearInterval(tetrisGame.loopHandle);
-  tetrisGame = { cols:8, rows:14, cellSize:20, board: Array.from({length:14},()=>Array(8).fill(null)), current:null, score:0, level:1, baseInterval:base, gameOver:false, loopHandle:null, loopStarted:false };
+  tetrisGame = { cols:8, rows:14, cellSize:27, board: Array.from({length:14},()=>Array(8).fill(null)), current:null, score:0, level:1, baseInterval:base, gameOver:false, loopHandle:null, loopStarted:false };
   spawnTetromino();
 }
 
+const DIFFICULTY_LABELS = { easy:'лёгко', medium:'средне', hard:'сложно' };
 function difficultyPickerHtml(gameKey, icon, title){
+  const levels = [
+    { key:'easy', color:'#2ECC71', label:'лёгко' },
+    { key:'medium', color:'#F5A623', label:'средне' },
+    { key:'hard', color:'#E8564A', label:'сложно' }
+  ];
   return `<div class="modal-overlay" id="modalOverlay">
     <div class="modal-sheet" style="text-align:center;">
       <div style="font-size:44px; margin-bottom:8px;">${icon}</div>
       <div class="modal-title">${title}</div>
-      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">выберите сложность — дальше игра будет ускоряться сама по ходу дела</p>
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <button class="btn-ghost-sm btn-block" data-start-game="${gameKey}" data-difficulty="easy">🟢 лёгко</button>
-        <button class="btn-ghost-sm btn-block" data-start-game="${gameKey}" data-difficulty="medium">🟡 средне</button>
-        <button class="btn-ghost-sm btn-block" data-start-game="${gameKey}" data-difficulty="hard">🔴 сложно</button>
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:18px;">выберите сложность — дальше игра будет ускоряться сама по ходу дела</p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        ${levels.map(l=>`
+          <button class="difficulty-btn" data-start-game="${gameKey}" data-difficulty="${l.key}">
+            <span class="difficulty-dot" style="background:${l.color};"></span>
+            <span class="difficulty-label">${l.label}</span>
+          </button>
+        `).join('')}
       </div>
-      <div class="btn-row" style="margin-top:14px">
-        <button id="modalCancel">закрыть</button>
+      <div class="btn-row" style="margin-top:16px">
+        <button id="modalCancel" class="btn-block">закрыть</button>
       </div>
     </div>
   </div>`;
@@ -702,6 +758,7 @@ function scheduleNextSignal(){
   setTimeout(()=>{
     if(!reactionGame) return;
     reactionGame.signalPos = { x: 12+Math.random()*70, y: 12+Math.random()*70 };
+    reactionGame.signalColor = SEAL_COLORS[Math.floor(Math.random()*SEAL_COLORS.length)];
     reactionGame.signalVisible = true;
     reactionGame.startTime = Date.now();
     if(modal && modal.type==='reactionGame') render();
@@ -2193,7 +2250,7 @@ function renderModal(){
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">ходов: ${memoryGame.moves}</p>
         <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
           ${memoryGame.cards.map(c=>`
-            <div class="memory-card ${c.matched?'matched':(c.revealed?'revealed':'')}" data-memory-card="${c.id}">${(c.revealed||c.matched)?c.symbol:'❔'}</div>
+            <div class="memory-card ${c.matched?'matched':(c.revealed?'revealed':'')}" data-memory-card="${c.id}" style="${(c.revealed||c.matched) ? `background:${c.color}22; border-color:${c.color};` : ''}">${(c.revealed||c.matched)?c.symbol:'❔'}</div>
           `).join('')}
         </div>
         <div class="btn-row" style="margin-top:16px">
@@ -2265,7 +2322,7 @@ function renderModal(){
         <div class="modal-sheet" style="text-align:center;">
           <div style="font-size:44px; margin-bottom:8px;">🐍</div>
           <div class="modal-title">игра окончена</div>
-          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${snakeGame.score} · уровень: ${snakeGame.level}</p>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${snakeGame.score} · уровень: ${snakeGame.level} · сложность: ${DIFFICULTY_LABELS[snakeDifficulty||'medium']}</p>
           <div class="btn-row">
             <button id="modalCancel">закрыть</button>
             <button class="btn-ghost-sm" data-change-difficulty="snakeGame">сменить сложность</button>
@@ -2278,7 +2335,7 @@ function renderModal(){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet" style="text-align:center;">
         <div class="modal-title">🐍 змейка</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="snakeScoreVal">${snakeGame.score}</span> · уровень: <span id="snakeLevelVal">${snakeGame.level}</span></p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="snakeScoreVal">${snakeGame.score}</span> · уровень: <span id="snakeLevelVal">${snakeGame.level}</span> · сложность: ${DIFFICULTY_LABELS[snakeDifficulty||'medium']}</p>
         <canvas id="snakeCanvas" width="${w}" height="${h}" style="border-radius:10px; max-width:100%; touch-action:none;"></canvas>
         <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px; max-width:180px; margin:14px auto 0;">
           <div></div><button class="safe-key" data-snake-dir="up">▲</button><div></div>
@@ -2298,7 +2355,7 @@ function renderModal(){
         <div class="modal-sheet" style="text-align:center;">
           <div style="font-size:44px; margin-bottom:8px;">🧱</div>
           <div class="modal-title">игра окончена</div>
-          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${tetrisGame.score} · уровень: ${tetrisGame.level}</p>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${tetrisGame.score} · уровень: ${tetrisGame.level} · сложность: ${DIFFICULTY_LABELS[tetrisDifficulty||'medium']}</p>
           <div class="btn-row">
             <button id="modalCancel">закрыть</button>
             <button class="btn-ghost-sm" data-change-difficulty="tetrisGame">сменить сложность</button>
@@ -2311,7 +2368,7 @@ function renderModal(){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet" style="text-align:center;">
         <div class="modal-title">🧱 тетрис</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="tetrisScoreVal">${tetrisGame.score}</span> · уровень: <span id="tetrisLevelVal">${tetrisGame.level}</span></p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="tetrisScoreVal">${tetrisGame.score}</span> · уровень: <span id="tetrisLevelVal">${tetrisGame.level}</span> · сложность: ${DIFFICULTY_LABELS[tetrisDifficulty||'medium']}</p>
         <canvas id="tetrisCanvas" width="${w}" height="${h}" style="border-radius:10px; max-width:100%; touch-action:none;"></canvas>
         <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; max-width:240px; margin:14px auto 0;">
           <button class="safe-key" data-tetris-action="left">◀</button>
@@ -2334,7 +2391,7 @@ function renderModal(){
         <div class="modal-sheet" style="text-align:center;">
           <div style="font-size:44px; margin-bottom:8px;">⚡</div>
           <div class="modal-title">раунды окончены</div>
-          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:6px;">поймано: ${hits.length} из ${reactionGame.maxRounds}</p>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:6px;">поймано: ${hits.length} из ${reactionGame.maxRounds} · сложность: ${DIFFICULTY_LABELS[reactionDifficulty||'medium']}</p>
           ${avg ? `<p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">средняя реакция: ${avg} мс</p>` : ''}
           <div class="btn-row">
             <button id="modalCancel">закрыть</button>
@@ -2347,9 +2404,9 @@ function renderModal(){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">⚡ лови сигнал</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">раунд ${reactionGame.round+1} из ${reactionGame.maxRounds} · тапни по кругу, пока не погас</p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">раунд ${reactionGame.round+1} из ${reactionGame.maxRounds} · сложность: ${DIFFICULTY_LABELS[reactionDifficulty||'medium']} · тапни по кругу, пока не погас (время реакции сокращается к концу)</p>
         <div class="reaction-arena">
-          ${reactionGame.signalVisible ? `<div class="reaction-signal" style="left:${reactionGame.signalPos.x}%; top:${reactionGame.signalPos.y}%;" data-reaction-signal="1"></div>` : ''}
+          ${reactionGame.signalVisible ? `<div class="reaction-signal" style="left:${reactionGame.signalPos.x}%; top:${reactionGame.signalPos.y}%; background:${reactionGame.signalColor}; box-shadow:0 0 22px 6px ${reactionGame.signalColor}88;" data-reaction-signal="1"></div>` : ''}
         </div>
         <div class="btn-row" style="margin-top:14px">
           <button id="modalCancel">закрыть</button>
@@ -3158,9 +3215,8 @@ function attachEvents(){
       if(type==='memoryGame') startMemoryGame();
       if(type==='cipherGame') startCipherGame();
       if(type==='anagramGame') startAnagramGame();
-      if(type==='reactionGame') startReactionGame();
-      if(type==='snakeGame') startSnakeGame();
-      if(type==='tetrisGame') startTetrisGame();
+      // reactionGame/snakeGame/tetrisGame НЕ стартуем здесь — у них есть
+      // экран выбора сложности, который должен появиться первым.
       modal = {type};
       render();
     };
@@ -3705,7 +3761,11 @@ function attachEvents(){
     });
 
     document.querySelectorAll('[data-reaction-signal]').forEach(el=>{
-      el.onclick = ()=>{
+      // На некоторых мобильных браузерах (в т.ч. Huawei Browser) одиночный
+      // pointerdown иногда не срабатывает надёжно — дублируем на touchstart
+      // и click. Флаг signalVisible защищает от двойного засчитывания одного тапа.
+      const handleHit = (e)=>{
+        if(e.cancelable) e.preventDefault();
         if(!reactionGame || !reactionGame.signalVisible) return;
         if(reactionGame.missTimer) clearTimeout(reactionGame.missTimer);
         const rt = Date.now() - reactionGame.startTime;
@@ -3715,6 +3775,9 @@ function attachEvents(){
         render();
         scheduleNextSignal();
       };
+      el.onpointerdown = handleHit;
+      el.ontouchstart = handleHit;
+      el.onclick = handleHit;
     });
 
     document.querySelectorAll('[data-restart-game]').forEach(el=>{
