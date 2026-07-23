@@ -1081,15 +1081,25 @@ function isDirector(){ const m = me(); return m && m.role === "director"; }
 
 // Проверяет, что удаление агента-директора подтверждено PIN'ом (или именем,
 // если у старого профиля PIN ещё не задан). Возвращает true, если можно продолжать.
+// Нужно ли требовать PIN/подтверждение имени при удалении этого агента.
+// Исключения: удаляете сами себя (уже вошли под PIN), либо вы директор и
+// удаляете НЕ-директора (родительский надзор не требует знания чужого PIN).
+// Удаление самого профиля директора требует PIN всегда.
+function deleteNeedsGuard(agent){
+  if(!agent) return false;
+  if(myAgentId === agent.id) return false;
+  if(isDirector() && agent.role !== 'director') return false;
+  return true;
+}
 async function verifyDeleteAgentGuard(agentId){
   const agent = state.agents.find(a=>a.id===agentId);
+  if(!deleteNeedsGuard(agent)) return true;
   const errEl = document.getElementById('deleteAgentError');
-  if(!agent || agent.role !== 'director') return true;
-  if(agent.directorPinHash){
+  if(agent.pinHash){
     const pin = (document.getElementById('deleteAgentPin')||{}).value?.trim();
-    if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'введите PIN директора'; return false; }
+    if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'введите PIN'; return false; }
     const hash = await hashPin(pin);
-    if(hash !== agent.directorPinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return false; }
+    if(hash !== agent.pinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return false; }
     return true;
   }
   const typed = (document.getElementById('deleteAgentNameConfirm')||{}).value?.trim();
@@ -1582,13 +1592,11 @@ function renderIdentity(){
       <option value="agent">агент (ребёнок)</option>
       ${!state.agents.some(a=>a.role==='director') ? `<option value="director">директор (родитель)</option>` : ''}
     </select>
-    <div id="newDirectorPinBlock" class="hidden">
-      <label class="field-label">придумайте PIN директора (4 цифры)</label>
-      <input id="newAgentPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
-      <label class="field-label">повторите PIN</label>
-      <input id="newAgentPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
-      <p class="btn-caption">PIN нужен, чтобы никто другой не мог войти под директором. запомните его — восстановить нельзя, только пересоздать штаб.</p>
-    </div>
+    <label class="field-label">придумайте свой PIN (4 цифры)</label>
+    <input id="newAgentPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
+    <label class="field-label">повторите PIN</label>
+    <input id="newAgentPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
+    <p class="btn-caption">PIN — это ваш личный пароль. он нужен, чтобы никто другой не мог войти под вашим именем, и чтобы вы сами могли вернуться в свой профиль с нового устройства. запомните его — восстановить нельзя, только пересоздать удостоверение.</p>
     <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки${state.agents.some(a=>a.role==='director') ? ' — в штабе уже есть директор, роль директора теперь можно только передать через список участников' : ''}</p>
     <div id="createAgentError" style="font-size:12px; color:var(--danger); min-height:16px; margin-bottom:6px;">${identityNotice ? escapeHtml(identityNotice) : ''}</div>
     <button class="btn-primary btn-block" style="margin-top:4px" id="createAgentBtn">создать удостоверение ↗</button>
@@ -1987,12 +1995,12 @@ function renderChat(){
 function renderModal(){
   if(modal.type === 'directorPinLogin'){
     const agent = agentById(modal.agentId);
-    const needsSetup = !agent || !agent.directorPinHash;
+    const needsSetup = !agent || !agent.pinHash;
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
-        <div class="modal-title">${needsSetup ? 'придумайте PIN директора' : `PIN директора: ${escapeHtml(agent?agent.name:'')}`}</div>
+        <div class="modal-title">${needsSetup ? 'придумайте PIN' : `PIN: ${escapeHtml(agent?agent.name:'')}`}</div>
         <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
-          ${needsSetup ? 'у этого профиля ещё нет PIN — задайте его сейчас, чтобы только вы могли входить как директор.' : 'введите PIN, чтобы войти под этим директором.'}
+          ${needsSetup ? 'у этого профиля ещё нет PIN (он создан до этой защиты) — задайте его сейчас, чтобы только вы могли входить под этим именем.' : 'введите PIN, чтобы войти под этим именем.'}
         </p>
         <label class="field-label">${needsSetup ? 'новый PIN (4 цифры)' : 'PIN (4 цифры)'}</label>
         <input id="dirPinInput" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
@@ -2438,7 +2446,7 @@ function renderModal(){
   if(modal.type === 'confirmTransferDirector'){
     const agent = agentById(modal.agentId);
     const meNow = me();
-    const hasCurrentPin = meNow && meNow.directorPinHash;
+    const hasCurrentPin = meNow && meNow.pinHash;
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">передать права директора?</div>
@@ -2514,20 +2522,20 @@ function renderModal(){
   }
   if(modal.type === 'confirmDelete'){
     const agent = state.agents.find(a=>a.id===modal.agentId);
-    const isDirectorAgent = agent && agent.role==='director';
+    const needsGuard = deleteNeedsGuard(agent);
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">удалить агента?</div>
         <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
           удостоверение «${agent?escapeHtml(agent.name):''}» будет удалено вместе с его миссиями и сообщениями в чате. это нельзя отменить.
-          ${isDirectorAgent ? ' это профиль директора — удаление освободит роль директора для нового профиля.' : ''}
+          ${agent && agent.role==='director' ? ' это профиль директора — удаление освободит роль директора для нового профиля.' : ''}
         </p>
-        ${isDirectorAgent ? (agent.directorPinHash
-          ? `<label class="field-label">PIN директора (для подтверждения)</label>
+        ${needsGuard ? (agent.pinHash
+          ? `<label class="field-label">PIN «${escapeHtml(agent.name)}» (для подтверждения)</label>
              <input id="deleteAgentPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>`
           : `<label class="field-label">введите имя «${escapeHtml(agent.name)}» для подтверждения</label>
              <input id="deleteAgentNameConfirm" placeholder="${escapeHtml(agent.name)}"/>`) : ''}
-        ${isDirectorAgent ? `<div id="deleteAgentError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>` : ''}
+        ${needsGuard ? `<div id="deleteAgentError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>` : ''}
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">отмена</button>
           <button class="btn-danger-outline" id="modalConfirmDelete">удалить</button>
@@ -2871,18 +2879,12 @@ function attachIdentityEvents(){
     render();
   };
   document.querySelectorAll('[data-select-agent]').forEach(el=>{
-    el.onclick = async ()=>{
+    el.onclick = ()=>{
       const id = el.getAttribute('data-select-agent');
-      const agent = agentById(id);
-      if(agent && agent.role==='director'){
-        // Вход под директором всегда требует PIN (или его первичной настройки для старых профилей).
-        modal = {type:'directorPinLogin', agentId:id};
-        render();
-        return;
-      }
-      saveMyId(id);
-      await heartbeat();
-      view = 'home';
+      // Вход под любым существующим профилем теперь всегда требует PIN
+      // (или его первичной настройки для профилей, созданных до этой защиты) —
+      // иначе с чужого устройства можно было зайти под кем угодно одним кликом.
+      modal = {type:'directorPinLogin', agentId:id};
       render();
     };
   });
@@ -2895,11 +2897,6 @@ function attachIdentityEvents(){
     };
   });
 
-  const roleSelect = document.getElementById('newAgentRole');
-  const pinBlock = document.getElementById('newDirectorPinBlock');
-  const syncPinBlock = ()=>{ if(pinBlock) pinBlock.classList.toggle('hidden', !roleSelect || roleSelect.value!=='director'); };
-  if(roleSelect){ roleSelect.onchange = syncPinBlock; syncPinBlock(); }
-
   const btn = document.getElementById('createAgentBtn');
   if(btn) btn.onclick = async ()=>{
     const errEl = document.getElementById('createAgentError');
@@ -2911,11 +2908,14 @@ function attachIdentityEvents(){
     const id = uid();
     const newAgent = {id, name, role, color, warnings:0, blockedUntil:null, permanentlyBlocked:false, pendingWarningAck:false};
 
+    // PIN теперь обязателен для любой роли — иначе кто угодно с чужого
+    // устройства мог бы позже зайти под этим именем без всякого подтверждения.
+    const pin = document.getElementById('newAgentPin').value.trim();
+    const pinConfirm = document.getElementById('newAgentPinConfirm').value.trim();
+    if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
+    if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
+
     if(role === 'director'){
-      const pin = document.getElementById('newAgentPin').value.trim();
-      const pinConfirm = document.getElementById('newAgentPinConfirm').value.trim();
-      if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN директора — ровно 4 цифры'; return; }
-      if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
       if(state.agents.some(a=>a.role==='director')){
         if(errEl) errEl.textContent = 'в штабе уже есть директор — обновите страницу';
         return;
@@ -2935,8 +2935,8 @@ function attachIdentityEvents(){
         render();
         return;
       }
-      newAgent.directorPinHash = await hashPin(pin);
     }
+    newAgent.pinHash = await hashPin(pin);
 
     state.agents.push(newAgent);
     await saveState();
@@ -2969,9 +2969,9 @@ function attachIdentityEvents(){
       const pinConfirm = document.getElementById('dirPinConfirm').value.trim();
       if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
       if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
-      agent.directorPinHash = await hashPin(pin);
+      agent.pinHash = await hashPin(pin);
       await saveState();
-      await repairDirectorLock();
+      if(agent.role === 'director') await repairDirectorLock();
       saveMyId(agentId);
       await heartbeat();
       modal = null; view = 'home';
@@ -2981,7 +2981,7 @@ function attachIdentityEvents(){
 
     if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
     const hash = await hashPin(pin);
-    if(hash !== agent.directorPinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
+    if(hash !== agent.pinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
     saveMyId(agentId);
     await heartbeat();
     modal = null; view = 'home';
@@ -3398,11 +3398,11 @@ function attachEvents(){
       const meNow = me();
       if(!target || !meNow){ modal=null; render(); return; }
 
-      if(meNow.directorPinHash){
+      if(meNow.pinHash){
         const currentPin = (document.getElementById('transferCurrentPin')||{}).value?.trim();
         if(!isValidPin(currentPin)){ if(errEl) errEl.textContent = 'введите ваш текущий PIN'; return; }
         const currentHash = await hashPin(currentPin);
-        if(currentHash !== meNow.directorPinHash){ if(errEl) errEl.textContent = 'неверный текущий PIN'; return; }
+        if(currentHash !== meNow.pinHash){ if(errEl) errEl.textContent = 'неверный текущий PIN'; return; }
       }
       const newPin = document.getElementById('transferNewPin').value.trim();
       const newPinConfirm = document.getElementById('transferNewPinConfirm').value.trim();
@@ -3417,9 +3417,9 @@ function attachEvents(){
         return;
       }
       meNow.role = 'agent';
-      delete meNow.directorPinHash;
+      delete meNow.pinHash;
       target.role = 'director';
-      target.directorPinHash = await hashPin(newPin);
+      target.pinHash = await hashPin(newPin);
       await saveState();
       showToast(`👑 ${target.name} теперь директор`);
       modal = null; render();
