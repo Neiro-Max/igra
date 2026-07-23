@@ -652,7 +652,11 @@ function ensureAuth(){
       unsub();
       if(user){ resolve(user); return; }
       auth.signInAnonymously().then(cred=>resolve(cred.user)).catch(err=>{
-        showError('вход: ' + err.message);
+        // В консоли Firebase может быть не включён провайдер "Anonymous" —
+        // это не критично: без него приложение просто работает так же, как
+        // и раньше, полагаясь на правила Realtime Database. Не блокируем
+        // вход и не показываем пугающий баннер, просто тихо логируем.
+        console.warn('ensureAuth: анонимный вход недоступен (' + err.message + '). Чтобы включить — Firebase Console → Authentication → Sign-in method → Anonymous → Enable.');
         resolve(null);
       });
     });
