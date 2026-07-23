@@ -1428,9 +1428,10 @@ function renderIdentity(){
       <div class="brand-mark spin-glow"><i>SHQ</i></div>
       <div>
         <div class="brand-title">секретный штаб</div>
-        <div class="brand-sub">закрытая сеть агентства</div>
+        <div class="brand-sub">закрытая сеть агентства · номер: ${roomId}</div>
       </div>
     </div>
+    <button class="btn-ghost-sm" id="wrongRoomBtn" style="margin-bottom:14px;">это не мой штаб — ввести другой номер</button>
     <div style="text-align:center; margin:6px 0 16px;">${illoMask()}</div>
     <h1>кто вы?</h1>
     <p class="lead">выберите свой позывной из списка, если вы уже зарегистрированы, или создайте нового агента.</p>
@@ -2676,6 +2677,14 @@ function escapeHtml(s){
 /* ---------- EVENTS ---------- */
 
 function attachIdentityEvents(){
+  const wrongRoomBtn = document.getElementById('wrongRoomBtn');
+  if(wrongRoomBtn) wrongRoomBtn.onclick = ()=>{
+    try{ db.ref('rooms/'+roomId+'/appState').off(); db.ref('rooms/'+roomId+'/presence').off(); }catch(e){}
+    try{ localStorage.removeItem(ROOM_KEY); }catch(e){}
+    roomId = null;
+    view = 'room';
+    render();
+  };
   document.querySelectorAll('[data-select-agent]').forEach(el=>{
     el.onclick = async ()=>{
       saveMyId(el.getAttribute('data-select-agent'));
