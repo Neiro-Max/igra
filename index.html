@@ -470,9 +470,17 @@ function placeSnakeFood(){
   while(snakeGame.snake.some(s=>s.x===pos.x && s.y===pos.y));
   snakeGame.food = pos;
 }
-function startSnakeGame(){
+let snakeDifficulty = null; // 'easy' | 'medium' | 'hard' — выбирается один раз, сохраняется для повторных игр
+const SNAKE_BASE_SPEED = { easy:220, medium:160, hard:110 };
+function snakeIntervalFor(g){
+  // Чем выше уровень (набрано очков), тем быстрее — как в оригинальной змейке.
+  return Math.max(70, g.baseInterval - (g.level-1)*12);
+}
+function startSnakeGame(difficulty){
+  if(difficulty) snakeDifficulty = difficulty;
+  const base = SNAKE_BASE_SPEED[snakeDifficulty || 'medium'];
   if(snakeGame && snakeGame.loopHandle) clearInterval(snakeGame.loopHandle);
-  snakeGame = { cols:14, rows:16, cellSize:18, snake:[{x:7,y:8},{x:6,y:8},{x:5,y:8}], dir:{x:1,y:0}, nextDir:{x:1,y:0}, score:0, gameOver:false, loopHandle:null, loopStarted:false };
+  snakeGame = { cols:14, rows:16, cellSize:18, snake:[{x:7,y:8},{x:6,y:8},{x:5,y:8}], dir:{x:1,y:0}, nextDir:{x:1,y:0}, score:0, level:1, baseInterval:base, gameOver:false, loopHandle:null, loopStarted:false };
   placeSnakeFood();
 }
 function setSnakeDir(dx,dy){
@@ -494,6 +502,14 @@ function snakeTick(){
   snakeGame.snake.unshift(newHead);
   if(newHead.x===snakeGame.food.x && newHead.y===snakeGame.food.y){
     snakeGame.score++;
+    const newLevel = 1 + Math.floor(snakeGame.score/5);
+    if(newLevel !== snakeGame.level){
+      snakeGame.level = newLevel;
+      if(snakeGame.loopHandle){
+        clearInterval(snakeGame.loopHandle);
+        snakeGame.loopHandle = setInterval(snakeTick, snakeIntervalFor(snakeGame));
+      }
+    }
     placeSnakeFood();
   } else {
     snakeGame.snake.pop();
@@ -518,6 +534,8 @@ function drawSnakeCanvas(){
   ctx.globalAlpha = 1;
   const scoreEl = document.getElementById('snakeScoreVal');
   if(scoreEl) scoreEl.textContent = snakeGame.score;
+  const levelEl = document.getElementById('snakeLevelVal');
+  if(levelEl) levelEl.textContent = snakeGame.level;
 }
 
 // ---------- Tetris game ----------
@@ -539,6 +557,11 @@ function checkTetrisCollision(piece, offX, offY, rotOverride){
   const rot = rotOverride!==undefined ? rotOverride : piece.rot;
   const cells = TETROMINOES[piece.type][rot].map(([dx,dy])=>({x:piece.x+dx+offX, y:piece.y+dy+offY}));
   return cells.some(c=> c.x<0||c.x>=tetrisGame.cols||c.y>=tetrisGame.rows||(c.y>=0 && tetrisGame.board[c.y][c.x]));
+}
+let tetrisDifficulty = null; // 'easy' | 'medium' | 'hard'
+const TETRIS_BASE_SPEED = { easy:700, medium:550, hard:400 };
+function tetrisIntervalFor(g){
+  return Math.max(150, g.baseInterval - (g.level-1)*50);
 }
 function spawnTetromino(){
   const types = Object.keys(TETROMINOES);
@@ -564,6 +587,14 @@ function lockTetromino(){
     }
   }
   if(cleared>0) tetrisGame.score += cleared*100;
+  const newLevel = 1 + Math.floor(tetrisGame.score/300);
+  if(newLevel !== tetrisGame.level){
+    tetrisGame.level = newLevel;
+    if(tetrisGame.loopHandle){
+      clearInterval(tetrisGame.loopHandle);
+      tetrisGame.loopHandle = setInterval(tetrisTick, tetrisIntervalFor(tetrisGame));
+    }
+  }
   spawnTetromino();
 }
 function tetrisTick(){
@@ -614,17 +645,46 @@ function drawTetrisCanvas(){
   }
   const scoreEl = document.getElementById('tetrisScoreVal');
   if(scoreEl) scoreEl.textContent = tetrisGame.score;
+  const levelEl = document.getElementById('tetrisLevelVal');
+  if(levelEl) levelEl.textContent = tetrisGame.level;
 }
-function startTetrisGame(){
+function startTetrisGame(difficulty){
+  if(difficulty) tetrisDifficulty = difficulty;
+  const base = TETRIS_BASE_SPEED[tetrisDifficulty || 'medium'];
   if(tetrisGame && tetrisGame.loopHandle) clearInterval(tetrisGame.loopHandle);
-  tetrisGame = { cols:8, rows:14, cellSize:20, board: Array.from({length:14},()=>Array(8).fill(null)), current:null, score:0, gameOver:false, loopHandle:null, loopStarted:false };
+  tetrisGame = { cols:8, rows:14, cellSize:20, board: Array.from({length:14},()=>Array(8).fill(null)), current:null, score:0, level:1, baseInterval:base, gameOver:false, loopHandle:null, loopStarted:false };
   spawnTetromino();
 }
 
+function difficultyPickerHtml(gameKey, icon, title){
+  return `<div class="modal-overlay" id="modalOverlay">
+    <div class="modal-sheet" style="text-align:center;">
+      <div style="font-size:44px; margin-bottom:8px;">${icon}</div>
+      <div class="modal-title">${title}</div>
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">выберите сложность — дальше игра будет ускоряться сама по ходу дела</p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="btn-ghost-sm btn-block" data-start-game="${gameKey}" data-difficulty="easy">🟢 лёгко</button>
+        <button class="btn-ghost-sm btn-block" data-start-game="${gameKey}" data-difficulty="medium">🟡 средне</button>
+        <button class="btn-ghost-sm btn-block" data-start-game="${gameKey}" data-difficulty="hard">🔴 сложно</button>
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button id="modalCancel">закрыть</button>
+      </div>
+    </div>
+  </div>`;
+}
 // ---------- Reaction game ----------
 let reactionGame = null;
-function startReactionGame(){
-  reactionGame = { round:0, maxRounds:5, times:[], signalVisible:false, signalPos:null, startTime:null, finished:false };
+let reactionDifficulty = null; // 'easy' | 'medium' | 'hard'
+const REACTION_PRESETS = {
+  easy:   { missTimer:1000, delayMin:900, delayRange:1200 },
+  medium: { missTimer:750,  delayMin:700, delayRange:1300 },
+  hard:   { missTimer:550,  delayMin:500, delayRange:900  }
+};
+function startReactionGame(difficulty){
+  if(difficulty) reactionDifficulty = difficulty;
+  const preset = REACTION_PRESETS[reactionDifficulty || 'medium'];
+  reactionGame = { round:0, maxRounds:5, times:[], signalVisible:false, signalPos:null, startTime:null, finished:false, preset };
   scheduleNextSignal();
 }
 function scheduleNextSignal(){
@@ -636,6 +696,9 @@ function scheduleNextSignal(){
   }
   reactionGame.signalVisible = false;
   if(modal && modal.type==='reactionGame') render();
+  // Чем дальше раунд, тем меньше времени на реакцию — как нарастающая сложность в оригиналах.
+  const ramp = Math.max(0.55, 1 - reactionGame.round*0.09);
+  const missTimer = Math.round(reactionGame.preset.missTimer * ramp);
   setTimeout(()=>{
     if(!reactionGame) return;
     reactionGame.signalPos = { x: 12+Math.random()*70, y: 12+Math.random()*70 };
@@ -649,8 +712,8 @@ function scheduleNextSignal(){
         reactionGame.round++;
         scheduleNextSignal();
       }
-    }, 750);
-  }, 700 + Math.random()*1300);
+    }, missTimer);
+  }, reactionGame.preset.delayMin + Math.random()*reactionGame.preset.delayRange);
 }
 
 function showToast(text, durationMs){
@@ -2196,15 +2259,16 @@ function renderModal(){
     </div>`;
   }
   if(modal.type === 'snakeGame'){
-    if(!snakeGame) startSnakeGame();
+    if(!snakeGame) return difficultyPickerHtml('snakeGame', '🐍', 'змейка');
     if(snakeGame.gameOver){
       return `<div class="modal-overlay" id="modalOverlay">
         <div class="modal-sheet" style="text-align:center;">
           <div style="font-size:44px; margin-bottom:8px;">🐍</div>
           <div class="modal-title">игра окончена</div>
-          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${snakeGame.score}</p>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${snakeGame.score} · уровень: ${snakeGame.level}</p>
           <div class="btn-row">
             <button id="modalCancel">закрыть</button>
+            <button class="btn-ghost-sm" data-change-difficulty="snakeGame">сменить сложность</button>
             <button class="btn-primary glow-btn" data-restart-game="snakeGame">играть ещё раз</button>
           </div>
         </div>
@@ -2214,7 +2278,7 @@ function renderModal(){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet" style="text-align:center;">
         <div class="modal-title">🐍 змейка</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="snakeScoreVal">${snakeGame.score}</span></p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="snakeScoreVal">${snakeGame.score}</span> · уровень: <span id="snakeLevelVal">${snakeGame.level}</span></p>
         <canvas id="snakeCanvas" width="${w}" height="${h}" style="border-radius:10px; max-width:100%; touch-action:none;"></canvas>
         <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px; max-width:180px; margin:14px auto 0;">
           <div></div><button class="safe-key" data-snake-dir="up">▲</button><div></div>
@@ -2228,15 +2292,16 @@ function renderModal(){
     </div>`;
   }
   if(modal.type === 'tetrisGame'){
-    if(!tetrisGame) startTetrisGame();
+    if(!tetrisGame) return difficultyPickerHtml('tetrisGame', '🧱', 'тетрис');
     if(tetrisGame.gameOver){
       return `<div class="modal-overlay" id="modalOverlay">
         <div class="modal-sheet" style="text-align:center;">
           <div style="font-size:44px; margin-bottom:8px;">🧱</div>
           <div class="modal-title">игра окончена</div>
-          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${tetrisGame.score}</p>
+          <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${tetrisGame.score} · уровень: ${tetrisGame.level}</p>
           <div class="btn-row">
             <button id="modalCancel">закрыть</button>
+            <button class="btn-ghost-sm" data-change-difficulty="tetrisGame">сменить сложность</button>
             <button class="btn-primary glow-btn" data-restart-game="tetrisGame">играть ещё раз</button>
           </div>
         </div>
@@ -2246,7 +2311,7 @@ function renderModal(){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet" style="text-align:center;">
         <div class="modal-title">🧱 тетрис</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="tetrisScoreVal">${tetrisGame.score}</span></p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="tetrisScoreVal">${tetrisGame.score}</span> · уровень: <span id="tetrisLevelVal">${tetrisGame.level}</span></p>
         <canvas id="tetrisCanvas" width="${w}" height="${h}" style="border-radius:10px; max-width:100%; touch-action:none;"></canvas>
         <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; max-width:240px; margin:14px auto 0;">
           <button class="safe-key" data-tetris-action="left">◀</button>
@@ -2261,7 +2326,7 @@ function renderModal(){
     </div>`;
   }
   if(modal.type === 'reactionGame'){
-    if(!reactionGame) startReactionGame();
+    if(!reactionGame) return difficultyPickerHtml('reactionGame', '⚡', 'лови сигнал');
     if(reactionGame.finished){
       const hits = reactionGame.times.filter(t=>t!==null);
       const avg = hits.length ? Math.round(hits.reduce((s,t)=>s+t,0)/hits.length) : null;
@@ -2273,6 +2338,7 @@ function renderModal(){
           ${avg ? `<p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">средняя реакция: ${avg} мс</p>` : ''}
           <div class="btn-row">
             <button id="modalCancel">закрыть</button>
+            <button class="btn-ghost-sm" data-change-difficulty="reactionGame">сменить сложность</button>
             <button class="btn-primary glow-btn" data-restart-game="reactionGame">играть ещё раз</button>
           </div>
         </div>
@@ -3021,12 +3087,12 @@ function attachEvents(){
   if(modal && modal.type==='snakeGame' && snakeGame && !snakeGame.gameOver && !snakeGame.loopStarted){
     snakeGame.loopStarted = true;
     drawSnakeCanvas();
-    snakeGame.loopHandle = setInterval(snakeTick, 180);
+    snakeGame.loopHandle = setInterval(snakeTick, snakeIntervalFor(snakeGame));
   }
   if(modal && modal.type==='tetrisGame' && tetrisGame && !tetrisGame.gameOver && !tetrisGame.loopStarted){
     tetrisGame.loopStarted = true;
     drawTetrisCanvas();
-    tetrisGame.loopHandle = setInterval(tetrisTick, 600);
+    tetrisGame.loopHandle = setInterval(tetrisTick, tetrisIntervalFor(tetrisGame));
   }
   document.querySelectorAll('[data-nav]').forEach(el=>{
     el.onclick = ()=>{
@@ -3660,6 +3726,25 @@ function attachEvents(){
         if(type==='reactionGame') startReactionGame();
         if(type==='snakeGame') startSnakeGame();
         if(type==='tetrisGame') startTetrisGame();
+        render();
+      };
+    });
+    document.querySelectorAll('[data-start-game]').forEach(el=>{
+      el.onclick = ()=>{
+        const type = el.getAttribute('data-start-game');
+        const difficulty = el.getAttribute('data-difficulty');
+        if(type==='reactionGame') startReactionGame(difficulty);
+        if(type==='snakeGame') startSnakeGame(difficulty);
+        if(type==='tetrisGame') startTetrisGame(difficulty);
+        render();
+      };
+    });
+    document.querySelectorAll('[data-change-difficulty]').forEach(el=>{
+      el.onclick = ()=>{
+        const type = el.getAttribute('data-change-difficulty');
+        if(type==='snakeGame'){ if(snakeGame && snakeGame.loopHandle) clearInterval(snakeGame.loopHandle); snakeGame = null; }
+        if(type==='tetrisGame'){ if(tetrisGame && tetrisGame.loopHandle) clearInterval(tetrisGame.loopHandle); tetrisGame = null; }
+        if(type==='reactionGame'){ reactionGame = null; }
         render();
       };
     });
