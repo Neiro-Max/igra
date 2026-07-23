@@ -730,6 +730,7 @@ let myAgentId = null;
 let view = "loading";
 let activeChannelId = null;
 let modal = null;
+let identityNotice = null; // одноразовое сообщение на экране "кто вы?" (переживает render(), в отличие от текста в DOM)
 
 const SEAL_COLORS = ["#12C88E","#FFA724","#FF5A4E","#5B8DEF","#F2569C","#8C6BF2"];
 
@@ -814,6 +815,61 @@ function saveTheme(){
 }
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
+
+/* ---------- Director PIN & single-director lock ----------
+   Защита от того, чтобы кто угодно (например, ребёнок) мог назначить себя
+   директором: роль директора требует PIN, а само "место" директора в
+   комнате захватывается атомарно через Firebase-транзакцию, чтобы двое
+   не могли одновременно создать двух разных директоров. */
+async function hashPin(pin){
+  const enc = new TextEncoder().encode('shq_pin_v1_' + String(pin));
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function isValidPin(pin){ return /^\d{4}$/.test(String(pin||'')); }
+
+// Пытается атомарно "занять" место директора для agentId.
+// Возвращает true только если слот был свободен или уже принадлежал этому агенту.
+async function claimDirectorSlot(agentId){
+  try{
+    const ref = roomRef('directorLock');
+    const result = await ref.transaction(current=>{
+      if(current === null || current === undefined || current === agentId) return agentId;
+      return; // слот занят кем-то другим — прервать транзакцию, ничего не менять
+    });
+    return !!(result && result.committed && result.snapshot.val() === agentId);
+  }catch(e){
+    showError('claimDirectorSlot: ' + e.message);
+    return false;
+  }
+}
+// Атомарно передаёт место директора от fromId к toId (используется при передаче прав).
+async function transferDirectorSlot(fromId, toId){
+  try{
+    const ref = roomRef('directorLock');
+    const result = await ref.transaction(current=>{
+      if(current === fromId || current === null || current === undefined) return toId;
+      return;
+    });
+    return !!(result && result.committed && result.snapshot.val() === toId);
+  }catch(e){
+    showError('transferDirectorSlot: ' + e.message);
+    return false;
+  }
+}
+// Освобождает слот директора (например, при удалении агента-директора).
+async function releaseDirectorSlot(agentId){
+  try{ await roomRef('directorLock').transaction(current=> (current===agentId ? null : current)); }
+  catch(e){}
+}
+// Подчищает слот под фактическое состояние — на случай старых комнат,
+// созданных до появления этой защиты (когда узла directorLock ещё не было).
+async function repairDirectorLock(){
+  try{
+    const director = state.agents.find(a=>a.role==='director');
+    await roomRef('directorLock').set(director ? director.id : null);
+  }catch(e){}
+}
 
 function defaultState(){
   return {
@@ -995,7 +1051,26 @@ function me(){ return state.agents.find(a => a.id === myAgentId) || null; }
 function agentById(id){ return state.agents.find(a => a.id === id); }
 function isDirector(){ const m = me(); return m && m.role === "director"; }
 
+// Проверяет, что удаление агента-директора подтверждено PIN'ом (или именем,
+// если у старого профиля PIN ещё не задан). Возвращает true, если можно продолжать.
+async function verifyDeleteAgentGuard(agentId){
+  const agent = state.agents.find(a=>a.id===agentId);
+  const errEl = document.getElementById('deleteAgentError');
+  if(!agent || agent.role !== 'director') return true;
+  if(agent.directorPinHash){
+    const pin = (document.getElementById('deleteAgentPin')||{}).value?.trim();
+    if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'введите PIN директора'; return false; }
+    const hash = await hashPin(pin);
+    if(hash !== agent.directorPinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return false; }
+    return true;
+  }
+  const typed = (document.getElementById('deleteAgentNameConfirm')||{}).value?.trim();
+  if(typed !== agent.name){ if(errEl) errEl.textContent = 'имя не совпадает'; return false; }
+  return true;
+}
+
 async function deleteAgentById(id){
+  const wasDirector = state.agents.some(a=>a.id===id && a.role==='director');
   state = normalizeState(state);
   state.agents = state.agents.filter(a=>a.id!==id);
   state.missions = state.missions.filter(x=>!missionAssignees(x).includes(id));
@@ -1019,6 +1094,7 @@ async function deleteAgentById(id){
     state.messages[chId] = (state.messages[chId]||[]).filter(msg=>msg.from!==id);
   });
   await saveState();
+  if(wasDirector) await releaseDirectorSlot(id);
   if(myAgentId===id){
     myAgentId=null;
     try{ localStorage.removeItem(myIdKey()); }catch(err){}
@@ -1033,11 +1109,6 @@ function missionAssigneeNames(msn){
   return missionAssignees(msn).map(id=>{ const a=agentById(id); return a?a.name:'?'; }).join(', ');
 }
 
-function pointsBank(agentId){
-  return state.missions
-    .filter(m => missionAssignees(m).includes(agentId) && m.status === "approved" && !m.redeemed)
-    .reduce((sum,m) => sum + m.points, 0);
-}
 function rewardCostById(rewardId){
   const r = state.rewards.find(x=>x.id===rewardId);
   return r ? r.cost : 0;
@@ -1114,6 +1185,7 @@ function render(){
   }
   if(!myAgentId || !me()){
     root.innerHTML = renderIdentity() + (modal ? renderModal() : '');
+    identityNotice = null; // однократное сообщение — показали, сбрасываем
     attachIdentityEvents();
     return;
   }
@@ -1338,8 +1410,24 @@ function attachRoomEvents(){
   const showOnboardingBtn = document.getElementById('showOnboardingBtn');
   if(showOnboardingBtn) showOnboardingBtn.onclick = ()=>{ onboardingStep=0; view='onboarding'; render(); };
   const createBtn = document.getElementById('createRoomBtn');
-  if(createBtn) createBtn.onclick = ()=>{
-    const code = generateRoomCode();
+  if(createBtn) createBtn.onclick = async ()=>{
+    createBtn.disabled = true;
+    createBtn.textContent = 'создаём номер штаба...';
+    let code = null;
+    try{
+      // На случай маловероятного совпадения кодов — проверяем, что номер свободен,
+      // прежде чем показать его как "ваш". Раньше это не проверялось вовсе.
+      for(let attempt=0; attempt<8; attempt++){
+        const candidate = generateRoomCode();
+        const snap = await db.ref('rooms/'+candidate+'/appState').once('value');
+        if(!snap.exists()){ code = candidate; break; }
+      }
+    }catch(e){
+      showError('createRoom: ' + e.message);
+    }
+    createBtn.disabled = false;
+    createBtn.textContent = 'создать новый штаб';
+    if(!code){ showError('не удалось подобрать свободный номер штаба, попробуйте ещё раз'); return; }
     modal = { type:'roomCreated', code };
     render();
   };
@@ -1388,6 +1476,7 @@ function attachRoomEvents(){
 async function startRoomSession(){
   loadMyId();
   await loadState();
+  await repairDirectorLock(); // синхронизирует директора со "слотом" — важно для комнат, созданных до этой защиты
   watchState();
   watchPresence();
   view = 'home';
@@ -1460,7 +1549,15 @@ function renderIdentity(){
       <option value="agent">агент (ребёнок)</option>
       ${!state.agents.some(a=>a.role==='director') ? `<option value="director">директор (родитель)</option>` : ''}
     </select>
+    <div id="newDirectorPinBlock" class="hidden">
+      <label class="field-label">придумайте PIN директора (4 цифры)</label>
+      <input id="newAgentPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
+      <label class="field-label">повторите PIN</label>
+      <input id="newAgentPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
+      <p class="btn-caption">PIN нужен, чтобы никто другой не мог войти под директором. запомните его — восстановить нельзя, только пересоздать штаб.</p>
+    </div>
     <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки${state.agents.some(a=>a.role==='director') ? ' — в штабе уже есть директор, роль директора теперь можно только передать через список участников' : ''}</p>
+    <div id="createAgentError" style="font-size:12px; color:var(--danger); min-height:16px; margin-bottom:6px;">${identityNotice ? escapeHtml(identityNotice) : ''}</div>
     <button class="btn-primary btn-block" style="margin-top:4px" id="createAgentBtn">создать удостоверение ↗</button>
   </div>`;
 }
@@ -1838,6 +1935,27 @@ function renderChat(){
 }
 
 function renderModal(){
+  if(modal.type === 'directorPinLogin'){
+    const agent = agentById(modal.agentId);
+    const needsSetup = !agent || !agent.directorPinHash;
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">${needsSetup ? 'придумайте PIN директора' : `PIN директора: ${escapeHtml(agent?agent.name:'')}`}</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          ${needsSetup ? 'у этого профиля ещё нет PIN — задайте его сейчас, чтобы только вы могли входить как директор.' : 'введите PIN, чтобы войти под этим директором.'}
+        </p>
+        <label class="field-label">${needsSetup ? 'новый PIN (4 цифры)' : 'PIN (4 цифры)'}</label>
+        <input id="dirPinInput" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        ${needsSetup ? `<label class="field-label">повторите PIN</label>
+        <input id="dirPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>` : ''}
+        <div id="dirPinError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalDirPinSubmit" data-agent-id="${modal.agentId}" data-needs-setup="${needsSetup?'1':'0'}">${needsSetup?'сохранить и войти':'войти →'}</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'newMission'){
     const agents = state.agents.filter(a=>a.role==='agent');
     return `<div class="modal-overlay" id="modalOverlay">
@@ -2269,13 +2387,22 @@ function renderModal(){
   }
   if(modal.type === 'confirmTransferDirector'){
     const agent = agentById(modal.agentId);
+    const meNow = me();
+    const hasCurrentPin = meNow && meNow.directorPinHash;
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">передать права директора?</div>
         <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
-          «${escapeHtml(agent?agent.name:'')}» станет директором, а вы сами станете обычным агентом.
+          «${escapeHtml(agent?agent.name:'')}» станет директором, а вы сами станете обычным агентом. новый директор получит новый PIN, который вы сейчас зададите.
         </p>
-        <div class="btn-row" style="margin-top:18px">
+        ${hasCurrentPin ? `<label class="field-label">ваш текущий PIN директора</label>
+        <input id="transferCurrentPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>` : ''}
+        <label class="field-label">новый PIN для «${escapeHtml(agent?agent.name:'')}» (4 цифры)</label>
+        <input id="transferNewPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        <label class="field-label">повторите новый PIN</label>
+        <input id="transferNewPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        <div id="transferDirectorError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
           <button id="modalCancel">отмена</button>
           <button class="btn-danger-outline" id="modalConfirmTransferDirector">передать права</button>
         </div>
@@ -2337,12 +2464,20 @@ function renderModal(){
   }
   if(modal.type === 'confirmDelete'){
     const agent = state.agents.find(a=>a.id===modal.agentId);
+    const isDirectorAgent = agent && agent.role==='director';
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">удалить агента?</div>
         <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
           удостоверение «${agent?escapeHtml(agent.name):''}» будет удалено вместе с его миссиями и сообщениями в чате. это нельзя отменить.
+          ${isDirectorAgent ? ' это профиль директора — удаление освободит роль директора для нового профиля.' : ''}
         </p>
+        ${isDirectorAgent ? (agent.directorPinHash
+          ? `<label class="field-label">PIN директора (для подтверждения)</label>
+             <input id="deleteAgentPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>`
+          : `<label class="field-label">введите имя «${escapeHtml(agent.name)}» для подтверждения</label>
+             <input id="deleteAgentNameConfirm" placeholder="${escapeHtml(agent.name)}"/>`) : ''}
+        ${isDirectorAgent ? `<div id="deleteAgentError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>` : ''}
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">отмена</button>
           <button class="btn-danger-outline" id="modalConfirmDelete">удалить</button>
@@ -2687,7 +2822,15 @@ function attachIdentityEvents(){
   };
   document.querySelectorAll('[data-select-agent]').forEach(el=>{
     el.onclick = async ()=>{
-      saveMyId(el.getAttribute('data-select-agent'));
+      const id = el.getAttribute('data-select-agent');
+      const agent = agentById(id);
+      if(agent && agent.role==='director'){
+        // Вход под директором всегда требует PIN (или его первичной настройки для старых профилей).
+        modal = {type:'directorPinLogin', agentId:id};
+        render();
+        return;
+      }
+      saveMyId(id);
       await heartbeat();
       view = 'home';
       render();
@@ -2701,14 +2844,51 @@ function attachIdentityEvents(){
       render();
     };
   });
+
+  const roleSelect = document.getElementById('newAgentRole');
+  const pinBlock = document.getElementById('newDirectorPinBlock');
+  const syncPinBlock = ()=>{ if(pinBlock) pinBlock.classList.toggle('hidden', !roleSelect || roleSelect.value!=='director'); };
+  if(roleSelect){ roleSelect.onchange = syncPinBlock; syncPinBlock(); }
+
   const btn = document.getElementById('createAgentBtn');
   if(btn) btn.onclick = async ()=>{
+    const errEl = document.getElementById('createAgentError');
+    if(errEl) errEl.textContent = '';
     const name = document.getElementById('newAgentName').value.trim();
-    if(!name) return;
+    if(!name){ if(errEl) errEl.textContent = 'впишите позывной'; return; }
     const role = document.getElementById('newAgentRole').value;
     const color = SEAL_COLORS[state.agents.length % SEAL_COLORS.length];
     const id = uid();
-    state.agents.push({id, name, role, color, warnings:0, blockedUntil:null, permanentlyBlocked:false, pendingWarningAck:false});
+    const newAgent = {id, name, role, color, warnings:0, blockedUntil:null, permanentlyBlocked:false, pendingWarningAck:false};
+
+    if(role === 'director'){
+      const pin = document.getElementById('newAgentPin').value.trim();
+      const pinConfirm = document.getElementById('newAgentPinConfirm').value.trim();
+      if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN директора — ровно 4 цифры'; return; }
+      if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
+      if(state.agents.some(a=>a.role==='director')){
+        if(errEl) errEl.textContent = 'в штабе уже есть директор — обновите страницу';
+        return;
+      }
+      btn.disabled = true;
+      // Атомарно "занимаем" место директора — если кто-то успел стать директором
+      // на другом устройстве на долю секунды раньше, claimDirectorSlot вернёт false.
+      const claimed = await claimDirectorSlot(id);
+      btn.disabled = false;
+      if(!claimed){
+        // Пишем во "флеш"-переменную, а не напрямую в DOM: render() ниже
+        // полностью пересоздаёт разметку экрана, и обычный errEl.textContent потерялся бы.
+        identityNotice = 'в этом штабе уже появился директор буквально сейчас — войдите в его профиль или создайте агента с ролью «агент»';
+        // Перечитываем актуальное состояние из БД (без записи!), чтобы не затереть
+        // слот директора, который мог только что законно занять кто-то другой.
+        await loadState();
+        render();
+        return;
+      }
+      newAgent.directorPinHash = await hashPin(pin);
+    }
+
+    state.agents.push(newAgent);
     await saveState();
     saveMyId(id);
     await heartbeat();
@@ -2720,8 +2900,41 @@ function attachIdentityEvents(){
   if(modalCancel) modalCancel.onclick = ()=>{ modal = (modal && modal.returnTo) || null; render(); };
   const modalConfirmDelete = document.getElementById('modalConfirmDelete');
   if(modalConfirmDelete) modalConfirmDelete.onclick = async ()=>{
+    if(!(await verifyDeleteAgentGuard(modal.agentId))) return;
     await deleteAgentById(modal.agentId);
     modal=null;
+    render();
+  };
+
+  const dirPinSubmit = document.getElementById('modalDirPinSubmit');
+  if(dirPinSubmit) dirPinSubmit.onclick = async ()=>{
+    const errEl = document.getElementById('dirPinError');
+    const agentId = dirPinSubmit.getAttribute('data-agent-id');
+    const needsSetup = dirPinSubmit.getAttribute('data-needs-setup') === '1';
+    const pin = document.getElementById('dirPinInput').value.trim();
+    const agent = agentById(agentId);
+    if(!agent){ modal=null; render(); return; }
+
+    if(needsSetup){
+      const pinConfirm = document.getElementById('dirPinConfirm').value.trim();
+      if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
+      if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
+      agent.directorPinHash = await hashPin(pin);
+      await saveState();
+      await repairDirectorLock();
+      saveMyId(agentId);
+      await heartbeat();
+      modal = null; view = 'home';
+      render();
+      return;
+    }
+
+    if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
+    const hash = await hashPin(pin);
+    if(hash !== agent.directorPinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
+    saveMyId(agentId);
+    await heartbeat();
+    modal = null; view = 'home';
     render();
   };
 }
@@ -2739,7 +2952,13 @@ function attachEvents(){
     tetrisGame.loopHandle = setInterval(tetrisTick, 600);
   }
   document.querySelectorAll('[data-nav]').forEach(el=>{
-    el.onclick = ()=>{ view = el.getAttribute('data-nav'); render(); };
+    el.onclick = ()=>{
+      if(snakeGame && snakeGame.loopHandle){ clearInterval(snakeGame.loopHandle); snakeGame=null; }
+      if(tetrisGame && tetrisGame.loopHandle){ clearInterval(tetrisGame.loopHandle); tetrisGame=null; }
+      modal = null;
+      view = el.getAttribute('data-nav');
+      render();
+    };
   });
   document.querySelectorAll('[data-open-channel]').forEach(el=>{
     el.onclick = ()=>{ activeChannelId = el.getAttribute('data-open-channel'); view='chat'; render(); setTimeout(scrollChatBottom,0); };
@@ -3029,6 +3248,7 @@ function attachEvents(){
 
     const confirmDeleteBtn = document.getElementById('modalConfirmDelete');
     if(confirmDeleteBtn) confirmDeleteBtn.onclick = async ()=>{
+      if(!(await verifyDeleteAgentGuard(modal.agentId))) return;
       await deleteAgentById(modal.agentId);
       modal=null; render();
     };
@@ -3119,14 +3339,35 @@ function attachEvents(){
 
     const confirmTransferBtn = document.getElementById('modalConfirmTransferDirector');
     if(confirmTransferBtn) confirmTransferBtn.onclick = async ()=>{
+      const errEl = document.getElementById('transferDirectorError');
       const target = agentById(modal.agentId);
       const meNow = me();
-      if(target && meNow){
-        meNow.role = 'agent';
-        target.role = 'director';
-        await saveState();
-        showToast(`👑 ${target.name} теперь директор`);
+      if(!target || !meNow){ modal=null; render(); return; }
+
+      if(meNow.directorPinHash){
+        const currentPin = (document.getElementById('transferCurrentPin')||{}).value?.trim();
+        if(!isValidPin(currentPin)){ if(errEl) errEl.textContent = 'введите ваш текущий PIN'; return; }
+        const currentHash = await hashPin(currentPin);
+        if(currentHash !== meNow.directorPinHash){ if(errEl) errEl.textContent = 'неверный текущий PIN'; return; }
       }
+      const newPin = document.getElementById('transferNewPin').value.trim();
+      const newPinConfirm = document.getElementById('transferNewPinConfirm').value.trim();
+      if(!isValidPin(newPin)){ if(errEl) errEl.textContent = 'новый PIN — ровно 4 цифры'; return; }
+      if(newPin !== newPinConfirm){ if(errEl) errEl.textContent = 'новый PIN и подтверждение не совпадают'; return; }
+
+      confirmTransferBtn.disabled = true;
+      const transferred = await transferDirectorSlot(meNow.id, target.id);
+      confirmTransferBtn.disabled = false;
+      if(!transferred){
+        if(errEl) errEl.textContent = 'не удалось передать права — попробуйте ещё раз';
+        return;
+      }
+      meNow.role = 'agent';
+      delete meNow.directorPinHash;
+      target.role = 'director';
+      target.directorPinHash = await hashPin(newPin);
+      await saveState();
+      showToast(`👑 ${target.name} теперь директор`);
       modal = null; render();
     };
 
@@ -3380,6 +3621,7 @@ function scrollChatBottom(){
 /* ---------- INIT ---------- */
 (async function init(){
   render();
+  await ensureAuth();
   await loadTheme();
   loadRoomId();
   let seenOnboarding = false;
