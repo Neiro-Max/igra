@@ -735,7 +735,7 @@ async function copyCodeToClipboard(code, feedbackEl){
     }catch(e){ ok = false; }
   }
   if(feedbackEl){
-    feedbackEl.textContent = ok ? 'скопировано!' : 'не удалось скопировать — выделите номер вручную';
+    feedbackEl.textContent = ok ? 'скопировано!' : 'не удалось скопировать — выделите код вручную';
     setTimeout(()=>{ feedbackEl.textContent=''; }, 2500);
   }
 }
@@ -1344,8 +1344,8 @@ const ONBOARDING_SLIDES = [
   },
   {
     icon: "\u2726",
-    title: "Штаб — это личный номер",
-    text: "Каждая семья или группа — отдельный закрытый штаб со своим личным номером. Один создаёт штаб и получает номер, остальные вводят этот же номер, чтобы присоединиться. Разные штабы никогда не видят данные друг друга.",
+    title: "Штаб — это код доступа",
+    text: "Каждая семья или группа — отдельный закрытый штаб со своим кодом доступа. Один создаёт штаб и получает код, остальные вводят этот же код, чтобы присоединиться. Разные штабы никогда не видят данные друг друга.",
     illustration: `<svg viewBox="0 0 260 150" width="100%" style="max-width:280px;">
       <rect x="85" y="35" width="90" height="70" rx="12" fill="var(--panel-alt)" stroke="var(--accent)" stroke-width="2.5"/>
       <rect x="105" y="55" width="50" height="16" rx="4" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
@@ -1402,6 +1402,7 @@ function attachOnboardingEvents(){
 }
 
 let roomScreenRevealed = false;
+let pendingInviteCode = null; // код из ссылки-приглашения — подставляется в поле, но не отправляется автоматически
 function renderRoomScreen(){
   if(!roomScreenRevealed){
     return `
@@ -1424,20 +1425,20 @@ function renderRoomScreen(){
       </div>
     </div>
     <h1>ваш штаб</h1>
-    <p class="lead">каждый штаб — это отдельная закрытая комната. создайте новый штаб и получите свой личный номер, или введите номер, если штаб уже существует.</p>
+    <p class="lead">каждый штаб — это отдельная закрытая комната. создайте новый штаб и получите свой код доступа, или введите код, если штаб уже существует.</p>
     <button class="btn-ghost-sm" id="showOnboardingBtn" style="margin-bottom:14px;">не понимаете, что это? посмотреть инструкцию →</button>
 
     <h2>новый штаб</h2>
     <button class="btn-primary btn-block" id="createRoomBtn">создать новый штаб</button>
-    <p class="btn-caption">выберите это, если вы первый из семьи — получите свой личный номер, который потом передадите остальным</p>
+    <p class="btn-caption">выберите это, если вы первый из семьи — получите свой код доступа, который потом передадите остальным</p>
 
-    <h2>уже есть номер</h2>
-    <label class="field-label">личный номер</label>
-    <input id="joinRoomCode" placeholder="например: X7K2QP" maxlength="8" style="text-transform:uppercase;"/>
-    <p class="btn-caption" style="margin-top:6px;">впишите сюда личный номер, который вам прислал создатель штаба (6 букв/цифр)</p>
-    <button class="btn-block" style="margin-top:12px" id="joinRoomBtn">войти по номеру</button>
+    <h2>уже есть код</h2>
+    <label class="field-label">код доступа</label>
+    <input id="joinRoomCode" placeholder="например: X7K2QP" maxlength="8" style="text-transform:uppercase;" value="${pendingInviteCode ? escapeHtml(pendingInviteCode) : ''}"/>
+    <p class="btn-caption" style="margin-top:6px;">${pendingInviteCode ? 'код подставлен из ссылки-приглашения — проверьте и нажмите «войти по коду», либо создайте свой штаб выше' : 'впишите сюда код доступа, который вам прислал создатель штаба (6 букв/цифр)'}</p>
+    <button class="btn-block" style="margin-top:12px" id="joinRoomBtn">войти по коду</button>
     <div id="joinRoomError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
-    <p class="btn-caption">выберите это, если кто-то из семьи уже создал штаб и прислал вам личный номер</p>
+    <p class="btn-caption">выберите это, если кто-то из семьи уже создал штаб и прислал вам код доступа</p>
   </div>`;
 }
 
@@ -1450,7 +1451,7 @@ function attachRoomEvents(){
   const createBtn = document.getElementById('createRoomBtn');
   if(createBtn) createBtn.onclick = async ()=>{
     createBtn.disabled = true;
-    createBtn.textContent = 'создаём номер штаба...';
+    createBtn.textContent = 'создаём код штаба...';
     let code = null;
     try{
       // На случай маловероятного совпадения кодов — проверяем, что номер свободен,
@@ -1465,7 +1466,7 @@ function attachRoomEvents(){
     }
     createBtn.disabled = false;
     createBtn.textContent = 'создать новый штаб';
-    if(!code){ showError('не удалось подобрать свободный номер штаба, попробуйте ещё раз'); return; }
+    if(!code){ showError('не удалось подобрать свободный код штаба, попробуйте ещё раз'); return; }
     modal = { type:'roomCreated', code };
     render();
   };
@@ -1474,18 +1475,18 @@ function attachRoomEvents(){
     const input = document.getElementById('joinRoomCode');
     const code = input.value.trim().toUpperCase();
     const errEl = document.getElementById('joinRoomError');
-    if(!code){ if(errEl) errEl.textContent = 'впишите личный номер'; return; }
-    if(errEl) errEl.textContent = 'проверяем номер...';
+    if(!code){ if(errEl) errEl.textContent = 'впишите код доступа'; return; }
+    if(errEl) errEl.textContent = 'проверяем код...';
     joinBtn.disabled = true;
     try{
       const snap = await db.ref('rooms/'+code+'/appState').once('value');
       if(!snap.exists()){
-        if(errEl) errEl.textContent = 'штаб с таким номером не найден. проверьте номер и попробуйте снова';
+        if(errEl) errEl.textContent = 'штаб с таким кодом не найден. проверьте код и попробуйте снова';
         joinBtn.disabled = false;
         return;
       }
     }catch(e){
-      if(errEl) errEl.textContent = 'не удалось проверить номер: ' + e.message;
+      if(errEl) errEl.textContent = 'не удалось проверить код: ' + e.message;
       joinBtn.disabled = false;
       return;
     }
@@ -1560,10 +1561,10 @@ function renderIdentity(){
       <div class="brand-mark spin-glow"><i>SHQ</i></div>
       <div>
         <div class="brand-title">секретный штаб</div>
-        <div class="brand-sub">закрытая сеть агентства · номер: ${roomId}</div>
+        <div class="brand-sub">закрытая сеть агентства · код: ${roomId}</div>
       </div>
     </div>
-    <button class="btn-ghost-sm" id="wrongRoomBtn" style="margin-bottom:14px;">это не мой штаб — ввести другой номер</button>
+    <button class="btn-ghost-sm" id="wrongRoomBtn" style="margin-bottom:14px;">это не мой штаб — ввести другой код</button>
     <div style="text-align:center; margin:6px 0 16px;">${illoMask()}</div>
     <h1>кто вы?</h1>
     <p class="lead">выберите свой позывной из списка, если вы уже зарегистрированы, или создайте нового агента.</p>
@@ -1626,7 +1627,7 @@ function renderHome(){
       <div class="brand-mark spin-glow"><i>SHQ</i></div>
       <div style="flex:1; min-width:0;">
         <div class="brand-title">секретный штаб</div>
-        <div class="brand-sub">${m.role==='director'?'директор':'агент'} · ${escapeHtml(m.name)} · номер: ${roomId}</div>
+        <div class="brand-sub">${m.role==='director'?'директор':'агент'} · ${escapeHtml(m.name)} · код: ${roomId}</div>
       </div>
     </div>
     <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
@@ -2055,11 +2056,15 @@ function renderModal(){
   }
   if(modal.type === 'shareOptions'){
     const code = modal.code;
-    const text = encodeURIComponent(`Присоединяйся к нашему секретному штабу Neiro-Max! Личный номер: ${code}`);
+    const inviteLink = `${location.origin}${location.pathname}?code=${encodeURIComponent(code)}`;
+    const text = encodeURIComponent(`Приглашаю тебя к участию в шпионской миссии Neiro-Max! Код доступа для входа: ${code}\nПерейди по ссылке — код подставится сам: ${inviteLink}`);
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
-        <div class="modal-title">отправить личный номер</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите, куда отправить — номер уже скопирован на всякий случай</p>
+        <div class="modal-title">отправить код доступа</div>
+        <div class="btn-caption" style="margin-top:0; margin-bottom:12px;">
+          ссылка сама подставит код получателю на экране входа — присоединиться или создать свой штаб он решает сам
+        </div>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите, куда отправить — код уже скопирован на всякий случай</p>
         <a href="sms:?body=${text}" class="choice-card" style="text-decoration:none; color:var(--text); margin-bottom:10px;">
           <div class="seal-sm" style="background:var(--accent-tint); color:var(--accent-ink);">📱</div>
           <div class="choice-name">СМС</div>
@@ -2477,7 +2482,7 @@ function renderModal(){
         <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
           все агенты, миссии, награды и переписка этого штаба будут удалены безвозвратно у всех участников. это нельзя отменить.
         </p>
-        <label class="field-label">чтобы подтвердить, введите личный номер</label>
+        <label class="field-label">чтобы подтвердить, введите код доступа</label>
         <input id="confirmRoomCodeInput" placeholder="впишите: ${roomId}" style="text-transform:uppercase;"/>
         <div id="deleteRoomError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
         <div class="btn-row" style="margin-top:4px">
@@ -2502,7 +2507,7 @@ function renderModal(){
           </div>
           <div class="id-card-label">роль</div>
           <div style="font-size:14px; margin-top:2px;">${m.role==='director'?'директор (родитель)':'агент (ребёнок)'}</div>
-          <div class="id-card-label" style="margin-top:14px;">личный номер</div>
+          <div class="id-card-label" style="margin-top:14px;">код доступа</div>
           <div style="font-family:var(--mono); font-size:16px; letter-spacing:2px; color:var(--accent-ink); margin-top:2px; user-select:text; -webkit-user-select:text;">${roomId}</div>
           <div class="btn-row" style="margin-top:10px">
             <button class="btn-ghost-sm" id="copyRoomCodeBtn" data-code="${roomId}">копировать</button>
@@ -2551,14 +2556,14 @@ function renderModal(){
       <div class="modal-sheet">
         <div class="modal-title">штаб создан</div>
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
-          сохраните этот личный номер — он понадобится всем членам семьи, чтобы присоединиться к этому же штабу
+          сохраните этот код доступа — он понадобится всем членам семьи, чтобы присоединиться к этому же штабу
         </p>
         <div class="id-card" style="text-align:center; margin-top:0;">
-          <div class="id-card-label">личный номер</div>
+          <div class="id-card-label">код доступа</div>
           <div style="font-family:var(--mono); font-size:32px; font-weight:700; letter-spacing:4px; color:var(--accent-ink); margin-top:8px; user-select:text; -webkit-user-select:text;">${modal.code}</div>
         </div>
         <div class="btn-row" style="margin-top:14px">
-          <button id="copyRoomCodeBtn" data-code="${modal.code}">скопировать номер</button>
+          <button id="copyRoomCodeBtn" data-code="${modal.code}">скопировать код</button>
           <button id="shareRoomCodeBtn" data-code="${modal.code}" class="btn-primary">отправить →</button>
         </div>
         <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
@@ -2681,7 +2686,7 @@ function renderModal(){
       ['Личные чаты', 'нужно одобрение того, кому пишете — это защита от нежелательного общения'],
       ['Группы', 'создаются сразу, без одобрения — как обычный групповой чат'],
       ['Директор', 'видит все каналы и все задания, может исправить баланс очков вручную при ошибке'],
-      ['Личный номер', 'приватный — его знают только члены вашей семьи. не публикуйте его где попало'],
+      ['Код доступа', 'приватный — его знают только члены вашей семьи. не публикуйте его где попало'],
       ['Предупреждения', 'директор может выдать предупреждение за нарушение кодекса. 1-е — просто напоминание, 2-е — блокировка на 24 часа, 3-е — исключение из штаба навсегда. в любой момент директор может помиловать и отменить это']
     ];
     return `<div class="modal-overlay" id="modalOverlay">
@@ -3432,8 +3437,8 @@ function attachEvents(){
     if(confirmDeleteRoomBtn) confirmDeleteRoomBtn.onclick = async ()=>{
       const typed = document.getElementById('confirmRoomCodeInput').value.trim().toUpperCase();
       const errEl = document.getElementById('deleteRoomError');
-      if(!typed){ if(errEl) errEl.textContent = 'впишите личный номер, чтобы подтвердить'; return; }
-      if(typed !== roomId){ if(errEl) errEl.textContent = 'номер не совпадает — проверьте и попробуйте снова'; return; }
+      if(!typed){ if(errEl) errEl.textContent = 'впишите код доступа, чтобы подтвердить'; return; }
+      if(typed !== roomId){ if(errEl) errEl.textContent = 'код не совпадает — проверьте и попробуйте снова'; return; }
       try{
         db.ref('rooms/'+roomId+'/appState').off();
         db.ref('rooms/'+roomId+'/presence').off();
@@ -3682,6 +3687,24 @@ function scrollChatBottom(){
   await withTimeout(ensureAuth(), 6000, null);
   await loadTheme();
   loadRoomId();
+
+  // Код из ссылки-приглашения (?code=XXXXXX) — только подставляем в поле,
+  // никогда не подключаемся автоматически. Каждый сам решает: войти по
+  // этому коду или создать свой штаб. Никакой особой логики дальше —
+  // экран входа отрисуется как обычно, код будет уже виден в поле.
+  try{
+    const params = new URLSearchParams(location.search);
+    const urlCode = params.get('code');
+    if(urlCode){
+      const cleaned = urlCode.trim().toUpperCase().slice(0, 8);
+      if(cleaned) pendingInviteCode = cleaned;
+      // Убираем параметр из адресной строки, чтобы обновление страницы
+      // не повторяло подстановку и не путало собственный код устройства.
+      const cleanUrl = location.pathname + location.hash;
+      history.replaceState(null, '', cleanUrl);
+    }
+  }catch(e){}
+
   let seenOnboarding = false;
   try{ seenOnboarding = !!localStorage.getItem(ONBOARDING_KEY); }catch(e){}
   if(!roomId && !seenOnboarding){
