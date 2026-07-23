@@ -1592,12 +1592,15 @@ function attachRoomEvents(){
     createBtn.disabled = true;
     createBtn.textContent = 'создаём код штаба...';
     let code = null;
+    let timedOut = false;
     try{
       // На случай маловероятного совпадения кодов — проверяем, что номер свободен,
-      // прежде чем показать его как "ваш". Раньше это не проверялось вовсе.
+      // прежде чем показать его как "ваш". Каждая проверка защищена таймаутом,
+      // чтобы плохая связь не превращала это в долгое зависание.
       for(let attempt=0; attempt<8; attempt++){
         const candidate = generateRoomCode();
-        const snap = await db.ref('rooms/'+candidate+'/appState').once('value');
+        const snap = await withTimeout(db.ref('rooms/'+candidate+'/appState').once('value'), 6000, null);
+        if(snap === '__timeout__'){ timedOut = true; break; }
         if(!snap.exists()){ code = candidate; break; }
       }
     }catch(e){
@@ -1605,6 +1608,7 @@ function attachRoomEvents(){
     }
     createBtn.disabled = false;
     createBtn.textContent = 'создать новый штаб';
+    if(timedOut){ showError('проверка кода занимает слишком много времени — проверьте интернет и попробуйте ещё раз'); return; }
     if(!code){ showError('не удалось подобрать свободный код штаба, попробуйте ещё раз'); return; }
     modal = { type:'roomCreated', code };
     render();
@@ -1617,18 +1621,30 @@ function attachRoomEvents(){
     if(!code){ if(errEl) errEl.textContent = 'впишите код доступа'; return; }
     if(errEl) errEl.textContent = 'проверяем код...';
     joinBtn.disabled = true;
+    let snap;
     try{
-      const snap = await db.ref('rooms/'+code+'/appState').once('value');
-      if(!snap.exists()){
-        if(errEl) errEl.textContent = 'штаб с таким кодом не найден. проверьте код и попробуйте снова';
-        joinBtn.disabled = false;
-        return;
-      }
+      // Таймаут — чтобы плохая связь не превращала это в вечное "проверяем код...",
+      // из-за которого раньше приходилось перезагружать страницу несколько раз.
+      snap = await withTimeout(
+        db.ref('rooms/'+code+'/appState').once('value'),
+        10000,
+        null
+      );
     }catch(e){
-      if(errEl) errEl.textContent = 'не удалось проверить код: ' + e.message;
+      if(errEl) errEl.textContent = 'не удалось проверить код: ' + e.message + ' — попробуйте ещё раз';
       joinBtn.disabled = false;
       return;
     }
+    joinBtn.disabled = false;
+    if(snap === '__timeout__'){
+      if(errEl) errEl.textContent = 'проверка кода занимает слишком много времени — проверьте интернет и нажмите «войти по коду» ещё раз';
+      return;
+    }
+    if(!snap.exists()){
+      if(errEl) errEl.textContent = 'штаб с таким кодом не найден. проверьте код и попробуйте снова';
+      return;
+    }
+    joinBtn.disabled = true;
     saveRoomId(code);
     await startRoomSession();
   };
@@ -2337,7 +2353,7 @@ function renderModal(){
         <div class="modal-title">🐍 змейка</div>
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">счёт: <span id="snakeScoreVal">${snakeGame.score}</span> · уровень: <span id="snakeLevelVal">${snakeGame.level}</span> · сложность: ${DIFFICULTY_LABELS[snakeDifficulty||'medium']}</p>
         <canvas id="snakeCanvas" width="${w}" height="${h}" style="border-radius:10px; max-width:100%; touch-action:none;"></canvas>
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px; max-width:180px; margin:14px auto 0;">
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-width:230px; margin:14px auto 0;">
           <div></div><button class="safe-key" data-snake-dir="up">▲</button><div></div>
           <button class="safe-key" data-snake-dir="left">◀</button><div></div><button class="safe-key" data-snake-dir="right">▶</button>
           <div></div><button class="safe-key" data-snake-dir="down">▼</button><div></div>
