@@ -1667,22 +1667,25 @@ function renderHome(){
           const statusNote = a.permanentlyBlocked ? ' · 🚫 исключён' : (a.blockedUntil && a.blockedUntil>Date.now() ? ' · ⏳ заблокирован' : (a.warnings>0 ? ` · ⚠️ предупреждений: ${a.warnings}` : ''));
           const showWarnBtns = isDirector() && a.id!==myAgentId;
           return `
-          <div style="display:flex; align-items:center; gap:10px; padding:6px 0;">
-            <div style="position:relative;">
-              <div class="seal-sm" style="${sealStyle(a.color)}; width:30px; height:30px;">${initials(a.name)}</div>
-              <span style="position:absolute; bottom:-1px; right:-1px; width:9px; height:9px; border-radius:50%; background:${onlineIds.has(a.id)?'var(--accent)':'var(--text-muted)'}; border:2px solid var(--panel);"></span>
+          <div style="padding:8px 0; ${showWarnBtns ? 'border-bottom:1px solid var(--border); ' : ''}">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="position:relative; flex-shrink:0;">
+                <div class="seal-sm" style="${sealStyle(a.color)}; width:30px; height:30px;">${initials(a.name)}</div>
+                <span style="position:absolute; bottom:-1px; right:-1px; width:9px; height:9px; border-radius:50%; background:${onlineIds.has(a.id)?'var(--accent)':'var(--text-muted)'}; border:2px solid var(--panel);"></span>
+              </div>
+              <div style="font-size:13px; flex:1; min-width:0;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}${statusNote}</span></div>
             </div>
-            <div style="font-size:13px; flex:1; min-width:0;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}${statusNote}</span></div>
             ${showWarnBtns ? `
-              <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
-                <button class="btn-ghost-sm" data-transfer-director="${a.id}">передать права директора</button>
-                <button class="btn-ghost-sm" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger);">⚠️ предупреждение</button>
-                ${(a.warnings>0 || a.blockedUntil || a.permanentlyBlocked) ? `<button class="btn-ghost-sm" data-pardon-agent="${a.id}">✅ помиловать</button>` : ''}
+              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-left:40px;">
+                <button class="btn-ghost-sm" data-transfer-director="${a.id}" style="flex-shrink:0;">передать права</button>
+                <button class="btn-ghost-sm" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger); flex-shrink:0;">⚠️ выдать предупреждение</button>
+                ${(a.warnings>0 || a.blockedUntil || a.permanentlyBlocked) ? `<button class="btn-ghost-sm" data-pardon-agent="${a.id}" style="flex-shrink:0;">✅ помиловать</button>` : ''}
               </div>
             ` : ''}
           </div>`;
         }).join('')}
     </div>
+    <p class="btn-caption" style="margin-top:6px;">«выдать предупреждение» — это кнопка-действие, доступная всегда. она не означает, что у агента уже есть нарушения — количество реальных предупреждений видно рядом с именем.</p>
 
     <h2>каналы связи</h2>
     ${renderChannelList(m)}
