@@ -1448,9 +1448,9 @@ function renderIdentity(){
     <label class="field-label">роль</label>
     <select id="newAgentRole">
       <option value="agent">агент (ребёнок)</option>
-      <option value="director">директор (родитель)</option>
+      ${!state.agents.some(a=>a.role==='director') ? `<option value="director">директор (родитель)</option>` : ''}
     </select>
-    <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки</p>
+    <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки${state.agents.some(a=>a.role==='director') ? ' — в штабе уже есть директор, роль директора теперь можно только передать через список участников' : ''}</p>
     <button class="btn-primary btn-block" style="margin-top:4px" id="createAgentBtn">создать удостоверение ↗</button>
   </div>`;
 }
@@ -1541,6 +1541,7 @@ function renderHome(){
             <div style="font-size:13px; flex:1; min-width:0;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}${statusNote}</span></div>
             ${showWarnBtns ? `
               <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
+                <button class="btn-ghost-sm" data-transfer-director="${a.id}">передать права директора</button>
                 <button class="btn-ghost-sm" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger);">⚠️ предупреждение</button>
                 ${(a.warnings>0 || a.blockedUntil || a.permanentlyBlocked) ? `<button class="btn-ghost-sm" data-pardon-agent="${a.id}">✅ помиловать</button>` : ''}
               </div>
@@ -2256,6 +2257,21 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'confirmTransferDirector'){
+    const agent = agentById(modal.agentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">передать права директора?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          «${escapeHtml(agent?agent.name:'')}» станет директором, а вы сами станете обычным агентом.
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmTransferDirector">передать права</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDeleteRoom'){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
@@ -2838,6 +2854,9 @@ function attachEvents(){
   document.querySelectorAll('[data-edit-reward]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'newReward', rewardId: el.getAttribute('data-edit-reward')}; render(); };
   });
+  document.querySelectorAll('[data-transfer-director]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'confirmTransferDirector', agentId: el.getAttribute('data-transfer-director')}; render(); };
+  });
   document.querySelectorAll('[data-issue-warning]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'issueWarning', agentId: el.getAttribute('data-issue-warning')}; render(); };
   });
@@ -3079,6 +3098,19 @@ function attachEvents(){
 
     const deleteRoomBtn = document.getElementById('modalDeleteRoom');
     if(deleteRoomBtn) deleteRoomBtn.onclick = ()=>{ modal = {type:'confirmDeleteRoom'}; render(); };
+
+    const confirmTransferBtn = document.getElementById('modalConfirmTransferDirector');
+    if(confirmTransferBtn) confirmTransferBtn.onclick = async ()=>{
+      const target = agentById(modal.agentId);
+      const meNow = me();
+      if(target && meNow){
+        meNow.role = 'agent';
+        target.role = 'director';
+        await saveState();
+        showToast(`👑 ${target.name} теперь директор`);
+      }
+      modal = null; render();
+    };
 
     const confirmDeleteRoomBtn = document.getElementById('modalConfirmDeleteRoom');
     if(confirmDeleteRoomBtn) confirmDeleteRoomBtn.onclick = async ()=>{
