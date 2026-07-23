@@ -2021,14 +2021,13 @@ function renderModal(){
         <div class="modal-title">новая миссия</div>
         <label class="field-label">название задания</label>
         <input id="mTitle" placeholder="например: убрать комнату"/>
-        <label class="field-label">кому (можно выбрать нескольких)</label>
+        <label class="field-label">кому</label>
         ${agents.length===0 ? `<div style="font-size:13px;color:var(--text-muted);">сначала нужен хотя бы один агент</div>` :
-          agents.map(a=>`
+          agents.map((a,i)=>`
             <label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:14px;">
-              <input type="checkbox" class="mission-assignee-cb" value="${a.id}" style="width:auto;"/> ${escapeHtml(a.name)}
+              <input type="radio" name="mission-assignee" class="mission-assignee-rb" value="${a.id}" style="width:auto;" ${i===0?'checked':''}/> ${escapeHtml(a.name)}
             </label>
           `).join('')}
-        <p class="btn-caption">если выбрать нескольких — это групповое задание, и очки получит каждый из них</p>
         <label class="field-label">очки за выполнение</label>
         <input id="mPoints" type="number" min="1" value="10"/>
         <label class="field-label">срок (необязательно)</label>
@@ -3466,12 +3465,13 @@ function attachEvents(){
     const createMission = document.getElementById('modalCreateMission');
     if(createMission) createMission.onclick = async ()=>{
       const title = document.getElementById('mTitle').value.trim();
-      const assignedTo = Array.from(document.querySelectorAll('.mission-assignee-cb:checked')).map(cb=>cb.value);
+      const selected = document.querySelector('.mission-assignee-rb:checked');
+      const assignedTo = selected ? [selected.value] : [];
       const points = parseInt(document.getElementById('mPoints').value)||10;
       const deadline = document.getElementById('mDeadline').value.trim();
       const errEl = document.getElementById('missionFormError');
       if(!title){ if(errEl) errEl.textContent = 'впишите название задания'; return; }
-      if(assignedTo.length===0){ if(errEl) errEl.textContent = 'выберите хотя бы одного агента'; return; }
+      if(assignedTo.length===0){ if(errEl) errEl.textContent = 'выберите агента'; return; }
       const msn = {id:uid(), title, assignedTo, points, deadline, status:'open', createdBy: myAgentId};
       state.missions.push(msn);
       state.messages.hq = state.messages.hq || [];
