@@ -204,6 +204,12 @@
   .btn-row{display:flex; gap:8px;}
   .btn-row button{flex:1;}
   .btn-ghost-sm{padding:6px 10px; font-size:12px; border-color:var(--border);}
+  .icon-action-btn{
+    width:36px; height:36px; min-width:36px; padding:0; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+    background:var(--panel-alt); border:1px solid var(--border-strong); color:var(--text);
+  }
+  .icon-action-btn:active{ background:var(--accent-tint); border-color:var(--accent); }
   .btn-enter{background:var(--accent); color:#0A1F19; border:none; font-weight:700; margin-right:6px;}
   .theme-btn{
     background:var(--accent); color:#0A1F19; border:none; font-weight:700; font-size:12px;
@@ -1666,26 +1672,40 @@ function renderHome(){
         state.agents.map(a=>{
           const statusNote = a.permanentlyBlocked ? ' · 🚫 исключён' : (a.blockedUntil && a.blockedUntil>Date.now() ? ' · ⏳ заблокирован' : (a.warnings>0 ? ` · ⚠️ предупреждений: ${a.warnings}` : ''));
           const showWarnBtns = isDirector() && a.id!==myAgentId;
+          const showPardon = showWarnBtns && (a.warnings>0 || a.blockedUntil || a.permanentlyBlocked);
           return `
-          <div style="padding:8px 0; ${showWarnBtns ? 'border-bottom:1px solid var(--border); ' : ''}">
-            <div style="display:flex; align-items:center; gap:10px;">
-              <div style="position:relative; flex-shrink:0;">
-                <div class="seal-sm" style="${sealStyle(a.color)}; width:30px; height:30px;">${initials(a.name)}</div>
-                <span style="position:absolute; bottom:-1px; right:-1px; width:9px; height:9px; border-radius:50%; background:${onlineIds.has(a.id)?'var(--accent)':'var(--text-muted)'}; border:2px solid var(--panel);"></span>
-              </div>
-              <div style="font-size:13px; flex:1; min-width:0;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}${statusNote}</span></div>
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 0;">
+            <div style="position:relative; flex-shrink:0;">
+              <div class="seal-sm" style="${sealStyle(a.color)}; width:30px; height:30px;">${initials(a.name)}</div>
+              <span style="position:absolute; bottom:-1px; right:-1px; width:9px; height:9px; border-radius:50%; background:${onlineIds.has(a.id)?'var(--accent)':'var(--text-muted)'}; border:2px solid var(--panel);"></span>
             </div>
+            <div style="font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(a.name)} <span style="color:var(--text-muted); font-size:11px;">· ${a.role==='director'?'директор':'агент'}${onlineIds.has(a.id)?' · в сети':''}${statusNote}</span></div>
             ${showWarnBtns ? `
-              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-left:40px;">
-                <button class="btn-ghost-sm" data-transfer-director="${a.id}" style="flex-shrink:0;">передать права</button>
-                <button class="btn-ghost-sm" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger); flex-shrink:0;">⚠️ выдать предупреждение</button>
-                ${(a.warnings>0 || a.blockedUntil || a.permanentlyBlocked) ? `<button class="btn-ghost-sm" data-pardon-agent="${a.id}" style="flex-shrink:0;">✅ помиловать</button>` : ''}
+              <div style="display:flex; gap:6px; flex-shrink:0;">
+                ${showPardon ? `<button class="icon-action-btn" data-pardon-agent="${a.id}" aria-label="помиловать" title="помиловать">✅</button>` : ''}
+                <button class="icon-action-btn" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger);" aria-label="выдать предупреждение" title="выдать предупреждение">⚠️</button>
               </div>
             ` : ''}
           </div>`;
         }).join('')}
     </div>
-    <p class="btn-caption" style="margin-top:6px;">«выдать предупреждение» — это кнопка-действие, доступная всегда. она не означает, что у агента уже есть нарушения — количество реальных предупреждений видно рядом с именем.</p>
+    <p class="btn-caption" style="margin-top:6px;">значок ⚠️ — это кнопка-действие «выдать предупреждение», доступная всегда. она не означает, что у агента уже есть нарушения — количество реальных предупреждений видно рядом с именем.</p>
+
+    ${(()=>{
+      if(!isDirector()) return '';
+      const eligible = state.agents.filter(a=>a.role==='agent');
+      if(eligible.length===0) return '';
+      return `
+      <div class="card" style="margin-top:10px; padding:14px;">
+        <div style="font-size:14px; font-weight:600; margin-bottom:4px;">👑 передать права директора</div>
+        <p class="btn-caption" style="margin-top:0;">выбранный агент станет директором, а вы сами станете обычным агентом. потребуется PIN.</p>
+        <label class="field-label">кому передать</label>
+        <select id="transferDirectorTarget">
+          ${eligible.map(a=>`<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
+        </select>
+        <button class="btn-danger-outline btn-block" style="margin-top:10px;" id="openTransferDirectorBtn">передать права →</button>
+      </div>`;
+    })()}
 
     <h2>каналы связи</h2>
     ${renderChannelList(m)}
@@ -3121,9 +3141,13 @@ function attachEvents(){
   document.querySelectorAll('[data-edit-reward]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'newReward', rewardId: el.getAttribute('data-edit-reward')}; render(); };
   });
-  document.querySelectorAll('[data-transfer-director]').forEach(el=>{
-    el.onclick = ()=>{ modal = {type:'confirmTransferDirector', agentId: el.getAttribute('data-transfer-director')}; render(); };
-  });
+  const openTransferDirectorBtn = document.getElementById('openTransferDirectorBtn');
+  if(openTransferDirectorBtn) openTransferDirectorBtn.onclick = ()=>{
+    const sel = document.getElementById('transferDirectorTarget');
+    if(!sel || !sel.value) return;
+    modal = {type:'confirmTransferDirector', agentId: sel.value};
+    render();
+  };
   document.querySelectorAll('[data-issue-warning]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'issueWarning', agentId: el.getAttribute('data-issue-warning')}; render(); };
   });
