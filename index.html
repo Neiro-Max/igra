@@ -1021,7 +1021,7 @@
       </div>
       <div class="clock-block">
         <div class="clock mono" id="clock">--:--:--</div>
-        <div class="clock-label">местное время</div>
+        <div class="clock-label">местное время · <span class="mono" id="buildStamp">сборка 7</span></div>
       </div>
     </div>
   </header>
@@ -2779,6 +2779,11 @@ document.getElementById('resetBtn').onclick = () => {
     render();
   });
 };
+
+// Номер сборки видно в шапке приложения — по нему сразу понятно, открылась
+// новая версия страницы или браузер отдал старую из кеша.
+const BUILD = 'сборка 7 (27.07.2026)';
+console.log('Neiro-Max Control —', BUILD);
 
 // ---------- pomodoro timer ----------
 const POMODORO_SECONDS = 25 * 60;
