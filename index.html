@@ -3211,14 +3211,21 @@ function attachIdentityEvents(){
       if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
       if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
       agent.pinHash = await hashPin(pin);
-      const recoveryCode = generateRecoveryCode();
-      agent.recoveryHash = await hashPin(recoveryCode);
+      // Новый код восстановления показываем только тем, у кого его ещё
+      // никогда не было — если PIN просто сбросил директор, старый код
+      // восстановления не трогаем, повторно его показывать незачем.
+      const hadRecoveryAlready = !!agent.recoveryHash;
+      let recoveryCode = null;
+      if(!hadRecoveryAlready){
+        recoveryCode = generateRecoveryCode();
+        agent.recoveryHash = await hashPin(recoveryCode);
+      }
       await saveState();
       if(agent.role === 'director') await repairDirectorLock();
       saveMyId(agentId);
       await heartbeat();
       view = 'home';
-      modal = { type:'recoveryCodeReveal', code: recoveryCode };
+      modal = hadRecoveryAlready ? null : { type:'recoveryCodeReveal', code: recoveryCode };
       render();
       return;
     }
@@ -3267,6 +3274,8 @@ function attachIdentityEvents(){
 
 function attachEvents(){
   wireCodeButtons();
+  const recoveryContinueBtnLoggedIn = document.getElementById('modalRecoveryContinue');
+  if(recoveryContinueBtnLoggedIn) recoveryContinueBtnLoggedIn.onclick = ()=>{ modal = null; render(); };
   if(modal && modal.type==='snakeGame' && snakeGame && !snakeGame.gameOver && !snakeGame.loopStarted){
     snakeGame.loopStarted = true;
     drawSnakeCanvas();
