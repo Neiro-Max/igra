@@ -53,6 +53,24 @@
     .glow-btn{ animation: glowPulse 2.4s ease-in-out 3; }
     .marquee-track{ animation: marqueeScroll 16s linear infinite; }
   }
+  .goal-box{ margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+  .goal-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .goal-label{ font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.4px; color:var(--text-secondary); text-transform:uppercase; }
+  .goal-nums{ font-family:var(--mono); font-size:12px; font-weight:700; color:var(--accent-ink); }
+  .goal-title{ font-size:14px; font-weight:700; margin:4px 0 8px; }
+  .goal-track{ height:10px; border-radius:6px; background:var(--panel-alt); border:1px solid var(--border-strong); overflow:hidden; }
+  .goal-fill{ height:100%; border-radius:5px; background:linear-gradient(90deg, var(--accent-strong), var(--violet-strong)); transition:width .6s ease-out; }
+  .goal-left{ font-size:12px; color:var(--text-secondary); margin-top:6px; }
+  .hist-summary{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .hist-cell{ background:var(--panel-alt); border:1px solid var(--border); border-radius:12px; padding:10px 12px; }
+  .hist-num{ font-family:var(--mono); font-size:18px; font-weight:700; }
+  .hist-cap{ font-size:11px; color:var(--text-secondary); margin-top:2px; }
+  .goal-badge{ font-family:var(--mono); font-size:11px; font-weight:700; color:var(--accent-ink);
+    background:var(--accent-tint); border:1px solid var(--accent); border-radius:14px; padding:5px 8px; text-align:center; white-space:nowrap; }
+  .streak-card{ display:flex; align-items:center; gap:12px; background:var(--amber-tint); border:1px solid var(--amber); border-radius:16px; padding:12px 14px; margin-bottom:16px; }
+  .streak-flame{ font-size:26px; line-height:1; }
+  .streak-num{ font-weight:700; font-size:15px; color:var(--amber-ink); }
+  .streak-sub{ font-size:12px; color:var(--text-secondary); margin-top:2px; }
   .screen-enter{ animation: screenEnter .26s ease-out; }
   @keyframes screenEnter{
     from{ opacity:0; transform:translateY(8px); }
@@ -1824,6 +1842,96 @@ function pointsHistory(agentId){
   return entries;
 }
 
+/* ---------- Прогресс, серии, недельный итог ----------
+   Раньше ребёнок видел только абсолютное число очков. Оно ничего не говорит:
+   80 — это много или мало? Близко ли до желаемого? Ниже — три вещи, которые
+   превращают счётчик в понятную траекторию. */
+
+// Начало суток по местному времени — чтобы серия считалась по календарным
+// дням, а не по «прошло 24 часа».
+function dayStart(ts){
+  const d = new Date(ts);
+  d.setHours(0,0,0,0);
+  return d.getTime();
+}
+const DAY_MS = 86400000;
+
+// Сколько дней подряд агент закрывал хотя бы одну миссию. Сегодняшний день
+// не обязателен: если вчера была миссия, а сегодня ещё нет — серия жива,
+// иначе она обнулялась бы каждое утро и смысл терялся.
+function missionStreak(agentId){
+  const days = new Set();
+  state.missions.forEach(m=>{
+    if(m.status==='approved' && m.approvedAt && missionAssignees(m).includes(agentId)){
+      days.add(dayStart(m.approvedAt));
+    }
+  });
+  if(days.size===0) return { current:0, best:0, activeToday:false };
+
+  const today = dayStart(Date.now());
+  const activeToday = days.has(today);
+  let cursor = activeToday ? today : today - DAY_MS;
+  let current = 0;
+  while(days.has(cursor)){ current++; cursor -= DAY_MS; }
+
+  const sorted = [...days].sort((a,b)=>a-b);
+  let best = 1, run = 1;
+  for(let i=1;i<sorted.length;i++){
+    run = (sorted[i] - sorted[i-1] === DAY_MS) ? run+1 : 1;
+    if(run > best) best = run;
+  }
+  return { current, best, activeToday };
+}
+
+// Сколько заработано за последние 7 дней (только начисления, без трат).
+function earnedLastWeek(agentId){
+  const since = dayStart(Date.now()) - 6*DAY_MS;
+  return pointsHistory(agentId)
+    .filter(h=>h.delta>0 && h.ts >= since)
+    .reduce((sum,h)=>sum+h.delta, 0);
+}
+
+// Цель — награда, к которой копит агент. Если он выбрал её сам, берём её;
+// иначе подставляем ближайшую недостижимую, чтобы полоса была всегда.
+function goalRewardFor(agentId){
+  const agent = agentById(agentId);
+  const rewards = (state.rewards||[]).filter(r=>r && typeof r.cost==='number');
+  if(rewards.length===0) return null;
+  if(agent && agent.goalRewardId){
+    const chosen = rewards.find(r=>r.id===agent.goalRewardId);
+    if(chosen) return chosen;
+  }
+  const pts = availablePoints(agentId);
+  const unaffordable = rewards.filter(r=>r.cost > pts).sort((a,b)=>a.cost-b.cost);
+  if(unaffordable.length) return unaffordable[0];
+  // Всё уже по карману — показываем самую дорогую как выполненную цель.
+  return rewards.slice().sort((a,b)=>b.cost-a.cost)[0];
+}
+
+// Полоса прогресса к цели. Заодно подсказывает, сколько осталось.
+function goalProgressHtml(agentId){
+  const goal = goalRewardFor(agentId);
+  if(!goal) return '';
+  const pts = availablePoints(agentId);
+  const pct = goal.cost>0 ? Math.max(0, Math.min(100, Math.round(pts/goal.cost*100))) : 100;
+  const left = Math.max(0, goal.cost - pts);
+  const reached = left===0;
+  const agent = agentById(agentId);
+  const isChosen = !!(agent && agent.goalRewardId === goal.id);
+  return `
+    <div class="goal-box">
+      <div class="goal-head">
+        <span class="goal-label">${reached ? '🎉 цель достигнута' : '🎯 цель'}${isChosen?'':' · ближайшая'}</span>
+        <span class="goal-nums">${pts} / ${goal.cost}</span>
+      </div>
+      <div class="goal-title">${escapeHtml(goal.title)}</div>
+      <div class="goal-track"><div class="goal-fill" style="width:${pct}%"></div></div>
+      <div class="goal-left">${reached
+        ? 'можно запросить награду в разделе «награды»'
+        : `осталось ${left} ${left===1?'очко':(left%10>=2&&left%10<=4&&(left%100<12||left%100>14)?'очка':'очков')}`}</div>
+    </div>`;
+}
+
 function sealStyle(color){
   return `background:${color}22; color:${color};`;
 }
@@ -2328,6 +2436,8 @@ function renderHome(){
   const myMissions = state.missions.filter(x=>missionAssignees(x).includes(m.id));
   const activeMissions = myMissions.filter(x=>x.status==='open'||x.status==='review');
   const pts = m.role==='agent' ? availablePoints(m.id) : null;
+  const streak = m.role==='agent' ? missionStreak(m.id) : null;
+  const weekEarned = m.role==='agent' ? earnedLastWeek(m.id) : 0;
   const totalAgentCount = state.agents.filter(a=>a.role==='agent').length;
   const online = state.agents.filter(a=>a.role==='agent' && onlineIds.has(a.id)).length;
   const totalOpen = state.missions.filter(x=>x.status==='open'||x.status==='review').length;
@@ -2376,8 +2486,19 @@ function renderHome(){
     <div class="card">
       <div class="stat-label">баланс очков</div>
       <div class="stat-value" data-count-to="${pts}">${pts}</div>
-      <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">копите на крупную награду или тратьте сейчас</div>
-    </div>` : `
+      ${weekEarned>0 ? `<div style="font-size:12px; color:var(--accent-ink); margin-top:2px; font-family:var(--mono);">+${weekEarned} за последние 7 дней</div>` : `<div style="font-size:12px; color:var(--text-muted); margin-top:4px;">копите на крупную награду или тратьте сейчас</div>`}
+      ${goalProgressHtml(m.id)}
+    </div>
+    ${streak.current>0 ? `
+    <div class="streak-card">
+      <div class="streak-flame">🔥</div>
+      <div style="flex:1; min-width:0;">
+        <div class="streak-num">${streak.current} ${streak.current===1?'день':(streak.current%10>=2&&streak.current%10<=4&&(streak.current%100<12||streak.current%100>14)?'дня':'дней')} подряд</div>
+        <div class="streak-sub">${streak.activeToday
+          ? (streak.current===streak.best ? 'это ваш лучший результат — так держать' : `лучшая серия: ${streak.best}`)
+          : 'сегодня ещё нет закрытых миссий — серия под угрозой'}</div>
+      </div>
+    </div>` : ''}` : `
     <div class="stat-row">
       <div class="stat-box">
         <div class="stat-label">на проверке</div>
@@ -2579,7 +2700,8 @@ function renderRewards(){
       <p class="btn-caption">например: "поход в кино" за 50 очков. награда остаётся в списке и после получения — её можно выдавать снова</p>`
       : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value" data-count-to="${pts}">${pts}</div>
           ${pending>0?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">ещё ${pending} очков в запросах, ждут подтверждения</div>`:''}
-          <button class="btn-ghost-sm" style="margin-top:10px;" data-show-history="${m.id}">📜 история начислений и трат</button>
+          ${goalProgressHtml(m.id)}
+          <button class="btn-ghost-sm" style="margin-top:12px;" data-show-history="${m.id}">📜 история начислений и трат</button>
         </div>`}
 
     ${director && pendingRequests.length>0 ? `
@@ -2640,6 +2762,7 @@ function renderRewards(){
       state.rewards.map(r=>{
         const alreadyPending = !director && (state.rewardRequests||[]).some(rq=>rq.status==='pending' && rq.agentId===myAgentId && rq.rewardId===r.id);
         const canRequest = !director && !alreadyPending && (availablePoints(myAgentId) - pendingRequestedCost(myAgentId)) >= r.cost;
+        const isMyGoal = !director && m.goalRewardId === r.id;
         return `
         <div class="reward-card">
           <div class="reward-icon">◆</div>
@@ -2647,9 +2770,14 @@ function renderRewards(){
             <div class="reward-title">${escapeHtml(r.title)}</div>
             <div class="reward-cost">${r.cost} очков</div>
           </div>
-          ${!director ? (alreadyPending
-            ? `<span style="font-size:12px; color:var(--text-muted); flex-shrink:0;">запрос отправлен</span>`
-            : `<button class="btn-ghost-sm" ${canRequest?'':'disabled style="opacity:0.4"'} data-request-reward="${r.id}">запросить</button>`) : `
+          ${!director ? `<div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0; align-items:stretch;">
+            ${alreadyPending
+              ? `<span style="font-size:12px; color:var(--text-muted); text-align:center;">запрос отправлен</span>`
+              : `<button class="btn-ghost-sm" ${canRequest?'':'disabled style="opacity:0.4"'} data-request-reward="${r.id}">запросить</button>`}
+            ${isMyGoal
+              ? `<span class="goal-badge">🎯 моя цель</span>`
+              : `<button class="btn-ghost-sm" data-set-goal="${r.id}">сделать целью</button>`}
+          </div>` : `
             <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
               <button class="btn-ghost-sm" data-edit-reward="${r.id}">изменить</button>
               <button class="btn-ghost-sm" data-delete-reward="${r.id}" style="border-color:var(--danger); color:var(--danger);" aria-label="удалить награду">🗑️</button>
@@ -3537,7 +3665,19 @@ function renderModal(){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">история очков — ${escapeHtml(agent?agent.name:'')}</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">текущий баланс: ${availablePoints(modal.agentId)} очков</p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">текущий баланс: ${availablePoints(modal.agentId)} очков</p>
+        ${(()=>{
+          const week = earnedLastWeek(modal.agentId);
+          const spent = history.filter(h=>h.delta<0).reduce((sm,h)=>sm-h.delta,0);
+          const earned = history.filter(h=>h.delta>0).reduce((sm,h)=>sm+h.delta,0);
+          const st = missionStreak(modal.agentId);
+          return `<div class="hist-summary">
+            <div class="hist-cell"><div class="hist-num" style="color:var(--accent-ink);">+${earned}</div><div class="hist-cap">всего заработано</div></div>
+            <div class="hist-cell"><div class="hist-num" style="color:var(--danger-on-panel);">−${spent}</div><div class="hist-cap">потрачено</div></div>
+            <div class="hist-cell"><div class="hist-num">+${week}</div><div class="hist-cap">за 7 дней</div></div>
+            <div class="hist-cell"><div class="hist-num">${st.best}</div><div class="hist-cap">лучшая серия</div></div>
+          </div>`;
+        })()}
         ${history.length===0 ? `<div class="empty-state"><div class="stamp">пусто</div><div>операций пока не было</div></div>` :
           history.map(h=>`
             <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border); gap:8px;">
@@ -3896,6 +4036,20 @@ function attachEvents(){
   });
   document.querySelectorAll('[data-reject]').forEach(el=>{
     el.onclick = ()=>{ modal = {type:'reject', missionId: el.getAttribute('data-reject')}; render(); };
+  });
+  document.querySelectorAll('[data-set-goal]').forEach(el=>{
+    el.onclick = async ()=>{
+      const rewardId = el.getAttribute('data-set-goal');
+      const agent = me();
+      if(!agent) return;
+      // Повторное нажатие по той же награде снимает цель — чтобы вернуться
+      // к автоподбору ближайшей, не создавая для этого отдельной кнопки.
+      agent.goalRewardId = (agent.goalRewardId === rewardId) ? null : rewardId;
+      const reward = state.rewards.find(r=>r.id===rewardId);
+      if(agent.goalRewardId && reward) showToast(`🎯 цель: ${reward.title}`);
+      await saveState();
+      render();
+    };
   });
   document.querySelectorAll('[data-request-reward]').forEach(el=>{
     el.onclick = async ()=>{
