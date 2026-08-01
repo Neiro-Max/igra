@@ -1851,6 +1851,7 @@ function renderHome(){
             ${showWarnBtns ? `
               <div style="display:flex; gap:6px; flex-shrink:0;">
                 ${showPardon ? `<button class="icon-action-btn" data-pardon-agent="${a.id}" aria-label="помиловать" title="помиловать">✅</button>` : ''}
+                ${a.pinHash ? `<button class="icon-action-btn" data-reset-pin="${a.id}" aria-label="сбросить PIN" title="сбросить PIN">🔑</button>` : ''}
                 <button class="icon-action-btn" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger);" aria-label="выдать предупреждение" title="выдать предупреждение">⚠️</button>
               </div>
             ` : ''}
@@ -2694,6 +2695,21 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'confirmResetPin'){
+    const agent = state.agents.find(a=>a.id===modal.agentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">сбросить PIN?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          «${agent?escapeHtml(agent.name):''}» потеряет свой текущий PIN. При следующем входе профиль попросит задать новый PIN — старый вводить не понадобится.
+        </p>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmResetPin">сбросить PIN</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDelete'){
     const agent = state.agents.find(a=>a.id===modal.agentId);
     const needsGuard = deleteNeedsGuard(agent);
@@ -3330,6 +3346,19 @@ function attachEvents(){
       if(agent){ agent.warnings = 0; agent.blockedUntil = null; agent.permanentlyBlocked = false; agent.pendingWarningAck = false; await saveState(); render(); }
     };
   });
+  document.querySelectorAll('[data-reset-pin]').forEach(el=>{
+    el.onclick = ()=>{ modal = {type:'confirmResetPin', agentId: el.getAttribute('data-reset-pin')}; render(); };
+  });
+  const confirmResetPinBtn = document.getElementById('modalConfirmResetPin');
+  if(confirmResetPinBtn) confirmResetPinBtn.onclick = async ()=>{
+    const agent = state.agents.find(a=>a.id===modal.agentId);
+    if(agent){
+      delete agent.pinHash;
+      await saveState();
+      showToast(`🔑 PIN «${agent.name}» сброшен — при следующем входе можно задать новый`);
+    }
+    modal = null; render();
+  };
   document.querySelectorAll('[data-repeat-mission]').forEach(el=>{
     el.onclick = async ()=>{
       const orig = state.missions.find(x=>x.id===el.getAttribute('data-repeat-mission'));
