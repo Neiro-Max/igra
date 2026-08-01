@@ -9,8 +9,8 @@
 <title>Секретный штаб</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B0F17">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -2679,14 +2679,18 @@ function renderModal(){
         </div>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">закрыть</button>
-          <button class="btn-danger-outline" id="modalSwitchAgent">сменить агента</button>
         </div>
+
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:20px; margin-bottom:2px;">аккаунт</div>
+        <button class="btn-block" style="margin-top:8px" id="modalSwitchAgent">🚪 выйти</button>
+        <button class="btn-block" style="margin-top:8px" id="modalSwitchRoom">сменить штаб</button>
+        <button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteSelf">удалить это удостоверение</button>
+        ${m.role==='director' ? `<button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteRoom">удалить штаб навсегда</button>` : ''}
+
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:20px; margin-bottom:2px;">справка</div>
         <button class="btn-block" style="margin-top:8px" id="modalShowRules">📖 правила игры</button>
         <button class="btn-block" style="margin-top:8px" id="modalShowCode">🤝 кодекс агента</button>
         <button class="btn-block" style="margin-top:8px" id="modalReplayOnboarding">↺ посмотреть инструкцию заново</button>
-        <button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteSelf">удалить это удостоверение</button>
-        <button class="btn-block" style="margin-top:8px" id="modalSwitchRoom">сменить штаб</button>
-        ${m.role==='director' ? `<button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteRoom">удалить штаб навсегда</button>` : ''}
       </div>
     </div>`;
   }
