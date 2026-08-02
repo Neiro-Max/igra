@@ -61,6 +61,15 @@
   .goal-track{ height:10px; border-radius:6px; background:var(--panel-alt); border:1px solid var(--border-strong); overflow:hidden; }
   .goal-fill{ height:100%; border-radius:5px; background:linear-gradient(90deg, var(--accent-strong), var(--violet-strong)); transition:width .6s ease-out; }
   .goal-left{ font-size:12px; color:var(--text-secondary); margin-top:6px; }
+  .rules-heading{ font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.6px;
+    text-transform:uppercase; color:var(--accent-ink); background:var(--accent-tint);
+    border-radius:8px; padding:6px 10px; margin:16px 0 10px; }
+  .rules-heading:first-of-type{ margin-top:4px; }
+  .rule-row{ display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--border); }
+  .rule-row:first-of-type{ border-top:none; }
+  .rule-icon{ font-size:20px; line-height:1.2; flex-shrink:0; width:26px; text-align:center; }
+  .rule-name{ font-size:14px; font-weight:700; margin-bottom:2px; }
+  .rule-text{ font-size:13px; color:var(--text-secondary); line-height:1.5; }
   .hist-summary{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
   .hist-cell{ background:var(--panel-alt); border:1px solid var(--border); border-radius:12px; padding:10px 12px; }
   .hist-num{ font-family:var(--mono); font-size:18px; font-weight:700; }
@@ -3131,6 +3140,15 @@ function mayClaimPinlessProfile(agent){
   return true;
 }
 
+/* Подпись кнопки выхода из окна. Игры открываются поверх списка игр, и
+   раньше «закрыть» выбрасывало на главный экран: сыграл в змейку, захотел
+   тетрис — иди через штаб заново. Теперь окно помнит, откуда его открыли. */
+function modalBackLabel(){
+  if(!modal || !modal.returnTo) return 'закрыть';
+  if(modal.returnTo.type === 'gamesHub') return '← к играм';
+  return '← назад';
+}
+
 function renderModal(){
   if(modal.type === 'directorPinLogin'){
     const agent = agentById(modal.agentId);
@@ -3251,7 +3269,7 @@ function renderModal(){
           <div class="modal-title">все пары найдены!</div>
           <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">получилось за ${memoryGame.moves} ходов</p>
           <div class="btn-row">
-            <button id="modalCancel">закрыть</button>
+            <button id="modalCancel">${modalBackLabel()}</button>
             <button class="btn-primary glow-btn" data-restart-game="memoryGame">играть ещё раз</button>
           </div>
         </div>
@@ -3267,7 +3285,7 @@ function renderModal(){
           `).join('')}
         </div>
         <div class="btn-row" style="margin-top:16px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3297,7 +3315,7 @@ function renderModal(){
           </div>
         `}
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3323,7 +3341,7 @@ function renderModal(){
           <button class="btn-ghost-sm" id="anagramRemoveLast">⌫ убрать последнюю</button>
         `}
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3337,7 +3355,7 @@ function renderModal(){
           <div class="modal-title">игра окончена</div>
           <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${snakeGame.score} · уровень: ${snakeGame.level} · сложность: ${DIFFICULTY_LABELS[snakeDifficulty||'medium']}</p>
           <div class="btn-row">
-            <button id="modalCancel">закрыть</button>
+            <button id="modalCancel">${modalBackLabel()}</button>
             <button class="btn-ghost-sm" data-change-difficulty="snakeGame">сменить сложность</button>
             <button class="btn-primary glow-btn" data-restart-game="snakeGame">играть ещё раз</button>
           </div>
@@ -3356,7 +3374,7 @@ function renderModal(){
           <div></div><button class="safe-key" data-snake-dir="down">▼</button><div></div>
         </div>
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3370,7 +3388,7 @@ function renderModal(){
           <div class="modal-title">игра окончена</div>
           <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">счёт: ${tetrisGame.score} · уровень: ${tetrisGame.level} · сложность: ${DIFFICULTY_LABELS[tetrisDifficulty||'medium']}</p>
           <div class="btn-row">
-            <button id="modalCancel">закрыть</button>
+            <button id="modalCancel">${modalBackLabel()}</button>
             <button class="btn-ghost-sm" data-change-difficulty="tetrisGame">сменить сложность</button>
             <button class="btn-primary glow-btn" data-restart-game="tetrisGame">играть ещё раз</button>
           </div>
@@ -3390,7 +3408,7 @@ function renderModal(){
           <button class="safe-key" data-tetris-action="right">▶</button>
         </div>
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3407,7 +3425,7 @@ function renderModal(){
           <p style="font-size:14px; color:var(--text-secondary); margin-bottom:6px;">поймано: ${hits.length} из ${reactionGame.maxRounds} · сложность: ${DIFFICULTY_LABELS[reactionDifficulty||'medium']}</p>
           ${avg ? `<p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">средняя реакция: ${avg} мс</p>` : ''}
           <div class="btn-row">
-            <button id="modalCancel">закрыть</button>
+            <button id="modalCancel">${modalBackLabel()}</button>
             <button class="btn-ghost-sm" data-change-difficulty="reactionGame">сменить сложность</button>
             <button class="btn-primary glow-btn" data-restart-game="reactionGame">играть ещё раз</button>
           </div>
@@ -3422,7 +3440,7 @@ function renderModal(){
           ${reactionGame.signalVisible ? `<div class="reaction-signal" style="left:${reactionGame.signalPos.x}%; top:${reactionGame.signalPos.y}%; background:${reactionGame.signalColor}; box-shadow:0 0 22px 6px ${reactionGame.signalColor}88;" data-reaction-signal="1"></div>` : ''}
         </div>
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3450,7 +3468,7 @@ function renderModal(){
           </div>
         `).join('')}
         <div class="btn-row" style="margin-top:6px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3493,7 +3511,7 @@ function renderModal(){
             ? `сейф самоуничтожился — не успели разгадать код за ${Math.round(SAFE_GAME_SECONDS/60)} мин. осталось попыток: ${safeGame.attemptsLeft}, но бонус за следующую будет меньше (+${SAFE_BONUS_BY_ATTEMPT[Math.min(safeGame.attempt, SAFE_MAX_ATTEMPTS-1)]})`
             : 'сейф самоуничтожился окончательно — попытки закончились. бонус по этой миссии сгорел, но очки за само задание остаются при вас'}</p>
           <div class="btn-row">
-            <button id="modalCancel">закрыть</button>
+            <button id="modalCancel">${modalBackLabel()}</button>
             ${safeGame.attemptsLeft > 0 ? `<button class="btn-primary glow-btn" id="safeRetry">попробовать снова</button>` : ''}
           </div>
         </div>
@@ -3735,7 +3753,7 @@ function renderModal(){
           <div id="copyFeedback" style="font-size:12px; color:var(--accent-ink); height:16px; margin-top:4px;"></div>
         </div>
         <div class="btn-row" style="margin-top:18px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
 
         <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:20px; margin-bottom:2px;">аккаунт</div>
@@ -3864,7 +3882,7 @@ function renderModal(){
         <button class="btn-primary btn-block" style="margin-top:16px" id="createGroupBtn">создать группу</button>
 
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -3908,38 +3926,68 @@ function renderModal(){
         </div>
 
         <div class="btn-row" style="margin-top:14px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
   }
   if(modal.type === 'rules'){
-    const rules = [
-      ['Позывной', 'каждый выбирает себе сам — это личный выбор агента'],
-      ['Миссии', 'директор создаёт задание с наградой в очках. можно назначить сразу нескольких агентов — это групповая миссия'],
-      ['Выполнение', 'агент отмечает задание готовым. очки начисляются только после проверки директором'],
-      ['Отклонено — не тупик', 'если директор отклонил задание с причиной, агент может исправить и отправить снова'],
-      ['Очки', 'не сгорают и принадлежат только тому, кто их заработал. можно копить на крупную награду'],
-      ['Награды', 'директор вписывает их вручную. агент запрашивает награду — но баллы спишутся только когда директор подтвердит, что реально её выдал'],
-      ['Личные чаты', 'нужно одобрение того, кому пишете — это защита от нежелательного общения'],
-      ['Группы', 'создаются сразу, без одобрения — как обычный групповой чат'],
-      ['Директор', 'видит все каналы и все задания, может исправить баланс очков вручную при ошибке'],
-      ['Код доступа', 'приватный — его знают только члены вашей семьи. не публикуйте его где попало'],
-      ['Предупреждения', 'директор может выдать предупреждение за нарушение кодекса. 1-е — просто напоминание, 2-е — блокировка на 24 часа, 3-е — исключение из штаба навсегда. в любой момент директор может помиловать и отменить это']
+    /* Инструкция разделена по ролям. Раньше она была общей: ребёнку
+       показывали блоки про проверку заданий и начисление очков, которые
+       ему всё равно недоступны, и половина текста пролистывалась не читая.
+       Теперь каждый видит только своё — и текста стало вдвое меньше. */
+    const forDirector = isDirector();
+
+    const common = [
+      ['🎖️', 'Позывной', 'каждый выбирает себе сам — это личный выбор агента'],
+      ['🔑', 'Код доступа', 'приватный, его знают только свои. не публикуйте его где попало'],
+      ['💬', 'Личные чаты', 'нужно согласие того, кому пишете. группы создаются сразу, без одобрения'],
+      ['🎮', 'Мини-игры', 'просто для развлечения, очки за них не начисляются']
     ];
+
+    const forAgents = [
+      ['🎯', 'Как заработать', 'директор ставит задание с ценой в очках. выполнили — отметьте готовым. очки придут после проверки'],
+      ['💬', 'Не согласны с ценой?', 'можно предложить свою — кнопка «обсудить». директор согласится или откажет'],
+      ['↩️', 'Отклонили — не беда', 'директор пишет причину, задание возвращается. исправьте и отправьте снова'],
+      ['🔓', 'Сейф', 'после сложного задания даётся бонус: угадать код из 4 цифр за 3 минуты. три попытки, но чем позже взломали, тем меньше бонус — 200, потом 120, потом 60'],
+      ['🏆', 'Цель', 'в разделе наград нажмите «сделать целью» — на главном экране появится полоса, сколько осталось копить'],
+      ['🔥', 'Серия', 'закрывайте хотя бы одно задание в день — счётчик дней подряд растёт. пропустили день — начинается заново'],
+      ['💎', 'Очки', 'не сгорают и принадлежат только вам. списываются, лишь когда директор подтвердит, что награду выдал']
+    ];
+
+    const forDirectors = [
+      ['📋', 'Задания', 'создаёте с ценой в очках, можно назначить сразу нескольких — получится групповое. цена не больше 10000'],
+      ['✅', 'Проверка', 'раздел «проверка» — подтвердить или отклонить с причиной. очки начисляются только здесь'],
+      ['🗑️', 'Удаление задания', 'корзина на карточке. если очки уже начислены, по умолчанию они сохраняются — задание исчезнет, баланс останется'],
+      ['⚖️', 'Исправить баланс', 'на карточке участника. а чтобы убрать ошибочное начисление целиком — откройте «история» и удалите нужную строку'],
+      ['🎁', 'Награды', 'вписываете сами. агент запрашивает, вы подтверждаете — только тогда очки списываются'],
+      ['👑', 'Передача прав', 'можно передать роль директора любому агенту. вы как основатель штаба вправе вернуть её себе в любой момент, без его согласия'],
+      ['⚠️', 'Предупреждения', 'первое — напоминание, второе — блокировка на сутки, третье — доступ приостановлен. помиловать можно в любой момент']
+    ];
+
+    const sections = forDirector
+      ? [['вы директор штаба', forDirectors], ['общее', common]]
+      : [['как играть', forAgents], ['общее', common]];
+
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
-        <div class="modal-title">правила игры</div>
-        ${rules.map(r=>`
-          <div style="margin-bottom:14px;">
-            <div style="font-size:13px; font-weight:700; color:var(--accent-ink); font-family:var(--mono); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:3px;">${r[0]}</div>
-            <div style="font-size:14px; color:var(--text); line-height:1.5;">${r[1]}</div>
-          </div>
+        <div class="modal-title">${forDirector ? 'инструкция директора' : 'инструкция агента'}</div>
+        ${sections.map(([heading, items])=>`
+          <div class="rules-heading">${heading}</div>
+          ${items.map(r=>`
+            <div class="rule-row">
+              <div class="rule-icon">${r[0]}</div>
+              <div style="min-width:0;">
+                <div class="rule-name">${r[1]}</div>
+                <div class="rule-text">${r[2]}</div>
+              </div>
+            </div>
+          `).join('')}
         `).join('')}
         <button class="btn-block" style="margin-top:6px" id="modalShowCodeFromRules">🤝 кодекс агента (правила поведения)</button>
         <button class="btn-block" style="margin-top:6px" id="modalReplayOnboardingFromRules">↺ посмотреть инструкцию с картинками</button>
         <div class="btn-row" style="margin-top:10px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -4018,7 +4066,7 @@ function renderModal(){
             </div>
           `).join('')}
         <div class="btn-row" style="margin-top:18px">
-          <button id="modalCancel">закрыть</button>
+          <button id="modalCancel">${modalBackLabel()}</button>
         </div>
       </div>
     </div>`;
@@ -4361,7 +4409,7 @@ function attachEvents(){
       if(type==='anagramGame') startAnagramGame();
       // reactionGame/snakeGame/tetrisGame НЕ стартуем здесь — у них есть
       // экран выбора сложности, который должен появиться первым.
-      modal = {type};
+      modal = { type, returnTo: { type:'gamesHub' } };
       render();
     };
   });
