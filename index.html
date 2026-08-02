@@ -1456,6 +1456,10 @@ function defaultState(){
     rewards: [],
     rewardRequests: [],
     adjustments: [],
+    // Основатель штаба — тот, кто создал его и завёл роль директора первым.
+    // Он вправе вернуть себе директорские права в любой момент, и отнять
+    // это право у него нельзя: иначе передача была бы билетом в один конец.
+    founderId: null,
     messages: { hq: [] }
   };
 }
@@ -1543,6 +1547,7 @@ function normalizeState(val){
     rewards,
     rewardRequests,
     adjustments: (Array.isArray(v.adjustments) ? v.adjustments : d.adjustments).filter(a=>a && typeof a==='object'),
+    founderId: (typeof v.founderId === 'string' && v.founderId) ? v.founderId : d.founderId,
     messages: (v.messages && typeof v.messages==='object') ? Object.assign({hq:[]}, v.messages) : d.messages
   };
 }
@@ -1564,7 +1569,7 @@ function normalizeState(val){
    В памяти форма данных прежняя (state.messages — объект массивов,
    state.adjustments — массив), поэтому весь код отрисовки не тронут. */
 
-const STATE_SECTIONS = ['agents','agentRequests','channels','missions','rewards','rewardRequests'];
+const STATE_SECTIONS = ['agents','agentRequests','channels','missions','rewards','rewardRequests','founderId'];
 // Слепок последнего known-состояния сервера — по нему считаем, что менять.
 let remoteSnapshot = {};
 
@@ -1851,6 +1856,17 @@ function isDirector(){ const m = me(); return m && m.role === "director"; }
 // Исключения: удаляете сами себя (уже вошли под PIN), либо вы директор и
 // удаляете НЕ-директора (родительский надзор не требует знания чужого PIN).
 // Удаление самого профиля директора требует PIN всегда.
+// Кого удалять нельзя вообще, кем бы ты ни был.
+function deleteForbiddenReason(agent){
+  if(!agent) return null;
+  if(agent.id === state.founderId && agent.id !== myAgentId){
+    return 'это профиль основателя штаба — его нельзя удалить. основатель вправе вернуть себе права директора в любой момент.';
+  }
+  if(agent.role === 'director' && !state.agents.some(a=>a.role==='director' && a.id!==agent.id)){
+    return 'это единственный директор штаба — без него штабом никто не сможет управлять. чтобы закрыть штаб целиком, используйте «удалить штаб навсегда» в настройках.';
+  }
+  return null;
+}
 function deleteNeedsGuard(agent){
   if(!agent) return false;
   if(myAgentId === agent.id) return false;
@@ -1859,8 +1875,20 @@ function deleteNeedsGuard(agent){
 }
 async function verifyDeleteAgentGuard(agentId){
   const agent = state.agents.find(a=>a.id===agentId);
+  const forbidden = deleteForbiddenReason(agent);
+  if(forbidden){
+    const el = document.getElementById('deleteAgentError');
+    if(el) el.textContent = forbidden;
+    return false;
+  }
   if(!deleteNeedsGuard(agent)) return true;
   const errEl = document.getElementById('deleteAgentError');
+  if(!agent.pinHash){
+    // Раньше беспиновый профиль удалялся вводом имени — а имя написано
+    // прямо над кнопкой. Защита ровно нулевая, поэтому её больше нет.
+    if(errEl) errEl.textContent = 'у этого профиля нет PIN, поэтому удалить его может только его владелец после входа, либо директор внутри штаба.';
+    return false;
+  }
   if(agent.pinHash){
     const pin = (document.getElementById('deleteAgentPin')||{}).value?.trim();
     if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'введите PIN'; return false; }
@@ -2425,6 +2453,12 @@ async function startRoomSession(){
     'загрузка данных штаба занимает необычно много времени — проверьте интернет-соединение. приложение откроется с тем, что успело загрузиться.'
   );
   if(!state) state = defaultState(); // подстраховка, если loadState() не успела отработать до таймаута
+  // Штабы, созданные до появления роли основателя: считаем основателем
+  // действующего директора. Делается один раз и только по достоверным данным.
+  if(stateLoaded && !state.founderId){
+    const dir = state.agents.find(a=>a.role==='director');
+    if(dir){ state.founderId = dir.id; await saveState(); }
+  }
   await withTimeout(repairDirectorLock(), 5000, null);
   watchState();
   watchPresence();
@@ -2671,7 +2705,7 @@ function renderHome(){
             ${showWarnBtns ? `
               <div style="display:flex; gap:6px; flex-shrink:0;">
                 ${showPardon ? `<button class="icon-action-btn" data-pardon-agent="${a.id}" aria-label="помиловать" title="помиловать">✅</button>` : ''}
-                ${a.pinHash ? `<button class="icon-action-btn" data-reset-pin="${a.id}" aria-label="сбросить PIN" title="сбросить PIN">🔑</button>` : ''}
+                ${a.pinHash && a.id !== state.founderId ? `<button class="icon-action-btn" data-reset-pin="${a.id}" aria-label="сбросить PIN" title="сбросить PIN">🔑</button>` : ''}
                 <button class="icon-action-btn" data-issue-warning="${a.id}" style="border-color:var(--danger); color:var(--danger);" aria-label="выдать предупреждение" title="выдать предупреждение">⚠️</button>
               </div>
             ` : ''}
@@ -2695,6 +2729,13 @@ function renderHome(){
         <button class="btn-danger-outline btn-block" style="margin-top:10px;" id="openTransferDirectorBtn">передать права →</button>
       </div>`;
     })()}
+
+    ${(m.id === state.founderId && m.role !== 'director') ? `
+      <div class="card" style="margin-top:10px; padding:14px; border-color:var(--accent);">
+        <div style="font-size:14px; font-weight:600; margin-bottom:4px;">👑 вернуть себе права директора</div>
+        <p class="btn-caption" style="margin-top:0;">вы основатель этого штаба. права директора можно вернуть в любой момент — подтверждение действующего директора не требуется. потребуется ваш PIN.</p>
+        <button class="btn-primary btn-block" style="margin-top:10px;" id="openReclaimDirectorBtn">вернуть права →</button>
+      </div>` : ''}
 
     <h2>каналы связи</h2>
     ${renderChannelList(m)}
@@ -2992,10 +3033,36 @@ function renderChat(){
   `;
 }
 
+/* Кому можно задать PIN прямо на входе. Раньше это разрешалось любому
+   профилю без PIN — то есть чужой профиль занимался в два нажатия: «войти»,
+   потом «придумайте PIN». Теперь так можно только если директор явно сбросил
+   человеку PIN, либо это старый профиль, созданный до появления защиты —
+   но никогда для директора и никогда для основателя штаба. */
+function mayClaimPinlessProfile(agent){
+  if(!agent) return false;
+  if(agent.pinHash) return false;
+  if(agent.id === state.founderId) return false;
+  if(agent.role === 'director') return false;
+  return true;
+}
+
 function renderModal(){
   if(modal.type === 'directorPinLogin'){
     const agent = agentById(modal.agentId);
-    const needsSetup = !agent || !agent.pinHash;
+    const needsSetup = !agent || (!agent.pinHash && mayClaimPinlessProfile(agent));
+    const locked = agent && !agent.pinHash && !mayClaimPinlessProfile(agent);
+    if(locked){
+      return `<div class="modal-overlay" id="modalOverlay">
+        <div class="modal-sheet">
+          <div class="modal-title">вход закрыт</div>
+          <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+            У профиля «${escapeHtml(agent.name)}» нет PIN, а это защищённая роль. Войти под ним нельзя.
+            Если это ваш профиль — восстановить доступ можно только с устройства, где вы уже вошли.
+          </p>
+          <div class="btn-row" style="margin-top:8px"><button id="modalCancel">понятно</button></div>
+        </div>
+      </div>`;
+    }
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">${needsSetup ? 'придумайте PIN' : `PIN: ${escapeHtml(agent?agent.name:'')}`}</div>
@@ -3836,6 +3903,31 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'reclaimDirector'){
+    const current = state.agents.find(a=>a.role==='director');
+    const meNow = me();
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">вернуть права директора?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          Вы снова станете директором штаба${current ? `, а «${escapeHtml(current.name)}» — обычным агентом` : ''}.
+          Очки, миссии и переписка не пострадают.
+        </p>
+        ${meNow && meNow.pinHash ? `<label class="field-label">ваш PIN</label>
+        <input id="reclaimPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>`
+        : `<p class="btn-caption">у вашего профиля нет PIN — задайте его сейчас, чтобы права нельзя было вернуть без вас.</p>
+        <label class="field-label">новый PIN (4 цифры)</label>
+        <input id="reclaimPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        <label class="field-label">повторите PIN</label>
+        <input id="reclaimPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>`}
+        <div id="reclaimError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalConfirmReclaim">вернуть права</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'negotiateMission'){
     const msn = state.missions.find(x=>x.id===modal.missionId);
     return `<div class="modal-overlay" id="modalOverlay">
@@ -4010,6 +4102,9 @@ function attachIdentityEvents(){
     }
     newAgent.pinHash = await hashPin(pin);
 
+    // Первый директор штаба становится его основателем.
+    if(newAgent.role === 'director' && !state.founderId) state.founderId = id;
+
     state.agents.push(newAgent);
     await saveState();
     saveMyId(id);
@@ -4038,10 +4133,17 @@ function attachIdentityEvents(){
     if(!agent){ modal=null; render(); return; }
 
     if(needsSetup){
+      // Разметку можно подделать через инструменты разработчика, поэтому
+      // право задать PIN перепроверяется здесь же, перед записью.
+      if(!mayClaimPinlessProfile(agent)){
+        if(errEl) errEl.textContent = 'для этого профиля так задать PIN нельзя';
+        return;
+      }
       const pinConfirm = document.getElementById('dirPinConfirm').value.trim();
       if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
       if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
       agent.pinHash = await hashPin(pin);
+      delete agent.pinResetPending;
       await saveState();
       if(agent.role === 'director') await repairDirectorLock();
       saveMyId(agentId);
@@ -4247,8 +4349,13 @@ function attachEvents(){
   const confirmResetPinBtn = document.getElementById('modalConfirmResetPin');
   if(confirmResetPinBtn) confirmResetPinBtn.onclick = async ()=>{
     const agent = state.agents.find(a=>a.id===modal.agentId);
+    if(agent && agent.id === state.founderId){
+      showToast('PIN основателя штаба сбросить нельзя');
+      modal = null; render(); return;
+    }
     if(agent){
       delete agent.pinHash;
+      agent.pinResetPending = true; // разрешаем задать новый PIN при входе
       await saveState();
       showToast(`🔑 PIN «${agent.name}» сброшен — при следующем входе можно задать новый`);
     }
@@ -4499,6 +4606,43 @@ function attachEvents(){
     const deleteRoomBtn = document.getElementById('modalDeleteRoom');
     if(deleteRoomBtn) deleteRoomBtn.onclick = ()=>{ modal = {type:'confirmDeleteRoom'}; render(); };
 
+    const openReclaimBtn = document.getElementById('openReclaimDirectorBtn');
+    if(openReclaimBtn) openReclaimBtn.onclick = ()=>{ modal = {type:'reclaimDirector'}; render(); };
+
+    const confirmReclaimBtn = document.getElementById('modalConfirmReclaim');
+    if(confirmReclaimBtn) confirmReclaimBtn.onclick = async ()=>{
+      const errEl = document.getElementById('reclaimError');
+      const meNow = me();
+      if(!meNow || meNow.id !== state.founderId){ modal=null; render(); return; }
+      const pin = (document.getElementById('reclaimPin')||{}).value?.trim();
+      if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
+
+      if(meNow.pinHash){
+        const hash = await hashPin(pin);
+        if(hash !== meNow.pinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
+      }else{
+        const confirmPin = (document.getElementById('reclaimPinConfirm')||{}).value?.trim();
+        if(pin !== confirmPin){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
+      }
+
+      confirmReclaimBtn.disabled = true;
+      const current = state.agents.find(a=>a.role==='director');
+      // Слот забирается той же транзакцией, что и при передаче — так два
+      // устройства не смогут развести штаб на двух директоров.
+      const taken = await transferDirectorSlot(current ? current.id : null, meNow.id);
+      confirmReclaimBtn.disabled = false;
+      if(!taken){
+        if(errEl) errEl.textContent = 'не удалось вернуть права — попробуйте ещё раз';
+        return;
+      }
+      if(current && current.id !== meNow.id) current.role = 'agent';
+      meNow.role = 'director';
+      if(!meNow.pinHash) meNow.pinHash = await hashPin(pin);
+      await saveState();
+      showToast('👑 права директора вернулись к вам');
+      modal = null; render();
+    };
+
     const confirmTransferBtn = document.getElementById('modalConfirmTransferDirector');
     if(confirmTransferBtn) confirmTransferBtn.onclick = async ()=>{
       const errEl = document.getElementById('transferDirectorError');
@@ -4525,7 +4669,10 @@ function attachEvents(){
         return;
       }
       meNow.role = 'agent';
-      delete meNow.pinHash;
+      // PIN уходящего директора СОХРАНЯЕМ. Раньше он удалялся, и человек
+      // оставался профилем без пароля: такой профиль может занять кто угодно
+      // через «придумайте PIN» или удалить, вписав имя с экрана. Плюс без
+      // своего PIN основатель не смог бы подтвердить возврат прав.
       target.role = 'director';
       target.pinHash = await hashPin(newPin);
       await saveState();
