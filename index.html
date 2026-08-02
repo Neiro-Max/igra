@@ -1422,6 +1422,22 @@ async function transferDirectorSlot(fromId, toId){
     return false;
   }
 }
+/* Безусловный захват слота — только для возврата прав основателем.
+   Обычная передача через transferDirectorSlot требует, чтобы замок в базе
+   совпадал с тем, кого приложение считает директором. Но замок мог остаться
+   от прежнего владельца или указывать на удалённого агента — и тогда
+   основатель упирался в «не удалось вернуть права», хотя по смыслу помешать
+   ему не может никто. Транзакция сохранена: два устройства одновременно
+   слот не растащат. */
+async function forceClaimDirectorSlot(toId){
+  try{
+    const result = await roomRef('directorLock').transaction(()=>toId);
+    return !!(result && result.committed && result.snapshot.val() === toId);
+  }catch(e){
+    showError('захват слота директора: ' + e.message);
+    return false;
+  }
+}
 // Освобождает слот директора (например, при удалении агента-директора).
 async function releaseDirectorSlot(agentId){
   try{ await roomRef('directorLock').transaction(current=> (current===agentId ? null : current)); }
@@ -4695,16 +4711,15 @@ function attachEvents(){
       }
 
       confirmReclaimBtn.disabled = true;
-      const current = state.agents.find(a=>a.role==='director');
-      // Слот забирается той же транзакцией, что и при передаче — так два
-      // устройства не смогут развести штаб на двух директоров.
-      const taken = await transferDirectorSlot(current ? current.id : null, meNow.id);
+      const taken = await forceClaimDirectorSlot(meNow.id);
       confirmReclaimBtn.disabled = false;
       if(!taken){
-        if(errEl) errEl.textContent = 'не удалось вернуть права — попробуйте ещё раз';
+        if(errEl) errEl.textContent = 'не удалось вернуть права — похоже, пропала связь. проверьте интернет и попробуйте ещё раз';
         return;
       }
-      if(current && current.id !== meNow.id) current.role = 'agent';
+      // Приводим роли в порядок: директор должен остаться ровно один.
+      // Если в данных накопилась рассинхронизация, здесь она чинится.
+      state.agents.forEach(a=>{ if(a.role === 'director' && a.id !== meNow.id) a.role = 'agent'; });
       meNow.role = 'director';
       if(!meNow.pinHash) meNow.pinHash = await hashPin(pin);
       await saveState();
