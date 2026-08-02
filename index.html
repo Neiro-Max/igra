@@ -438,6 +438,11 @@ let safeGame = null;
 let safeGameTimerHandle = null;
 // Три попытки на сейф, награда тает с каждой — чтобы упорство вознаграждалось,
 // но взлом с первого раза оставался заметно ценнее.
+// Потолок на любое количество очков, вводимое руками. Главная дыра была
+// в «торге»: агент вписывал сколько угодно, а директор соглашался одним
+// нажатием — так в данные и попадали миллионы. Десять тысяч заведомо больше
+// любой разумной награды, но уже не ломает восприятие баланса.
+const MAX_POINTS_VALUE = 10000;
 const SAFE_MAX_ATTEMPTS = 3;
 const SAFE_BONUS_BY_ATTEMPT = [200, 120, 60];
 // Минуты на взлом сейфа не хватало — задача заметно сложнее, чем кажется
@@ -2067,7 +2072,7 @@ function pointsHistory(agentId){
   });
   (state.adjustments||[]).forEach(a=>{
     if(a.agentId===agentId){
-      entries.push({ ts: a.ts || 0, delta: toNum(a.delta), label: a.reason ? `корректировка: ${a.reason}` : 'ручная корректировка' });
+      entries.push({ ts: a.ts || 0, delta: toNum(a.delta), label: a.reason ? `корректировка: ${a.reason}` : 'ручная корректировка', type:'adjustment', adjId: a.id });
     }
   });
   entries.sort((a,b)=> b.ts - a.ts);
@@ -3569,6 +3574,28 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'confirmDeleteAdjustment'){
+    const adj = (state.adjustments||[]).find(a=>a.id===modal.adjId);
+    const delta = adj ? toNum(adj.delta) : 0;
+    const agent = agentById(modal.agentId);
+    const after = availablePoints(modal.agentId) - delta;
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">убрать запись?</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          Запись «${escapeHtml(adj && adj.reason ? adj.reason : 'ручная корректировка')}» на ${delta>=0?'+':''}${delta} очков будет удалена.
+        </p>
+        <div class="card" style="margin-top:10px; padding:12px;">
+          <div style="font-size:13px; color:var(--text-secondary);">баланс «${escapeHtml(agent?agent.name:'')}» станет:</div>
+          <div style="font-family:var(--mono); font-size:22px; font-weight:700; margin-top:4px;">${after} очков</div>
+        </div>
+        <div class="btn-row" style="margin-top:18px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-danger-outline" id="modalConfirmDeleteAdjustment">убрать запись</button>
+        </div>
+      </div>
+    </div>`;
+  }
   if(modal.type === 'confirmDeleteMission'){
     const msn = state.missions.find(x=>x.id===modal.missionId);
     const awarded = msn && msn.status === 'approved';
@@ -3985,6 +4012,7 @@ function renderModal(){
               </div>
               <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                 ${h.type==='mission' && isDirector() ? `<button class="btn-ghost-sm" data-repeat-mission="${h.missionId}">🔁 повторить</button>` : ''}
+                ${h.type==='adjustment' && isDirector() ? `<button class="btn-ghost-sm" style="border-color:var(--danger); color:var(--danger-on-panel);" data-delete-adjustment="${h.adjId}" data-agent="${modal.agentId}" aria-label="удалить запись">🗑️</button>` : ''}
                 <div style="font-family:var(--mono); font-weight:700; font-size:15px; color:${h.delta>=0?'var(--accent-ink)':'var(--danger)'};">${h.delta>=0?'+':''}${h.delta}</div>
               </div>
             </div>
@@ -4300,7 +4328,7 @@ function attachEvents(){
     el.onclick = async ()=>{
       const msn = state.missions.find(x=>x.id===el.getAttribute('data-accept-proposal'));
       if(msn){
-        msn.points = msn.proposedPoints;
+        msn.points = Math.min(toNum(msn.proposedPoints), MAX_POINTS_VALUE);
         msn.proposalStatus = null;
         msn.proposedPoints = null;
         msn.proposalReason = '';
@@ -4452,6 +4480,18 @@ function attachEvents(){
     }
     modal = null; render();
   };
+  /* Удаление отдельной записи из истории. Нужно, чтобы убирать ошибочные
+     начисления по причине, а не гасить их встречным списанием: иначе в
+     истории навсегда остаются две огромные строки друг напротив друга.
+     Доступно только директору и только для ручных корректировок — очки за
+     миссии убираются вместе с самой миссией. */
+  document.querySelectorAll('[data-delete-adjustment]').forEach(el=>{
+    el.onclick = ()=>{
+      if(!isDirector()) return;
+      modal = { type:'confirmDeleteAdjustment', adjId: el.getAttribute('data-delete-adjustment'), agentId: el.getAttribute('data-agent') };
+      render();
+    };
+  });
   document.querySelectorAll('[data-repeat-mission]').forEach(el=>{
     el.onclick = async ()=>{
       const orig = state.missions.find(x=>x.id===el.getAttribute('data-repeat-mission'));
@@ -4672,6 +4712,17 @@ function attachEvents(){
       showToast(msn.status==='approved' && pts>0 && keep ? 'задание удалено, очки сохранены' : 'задание удалено');
     };
 
+    const confirmDeleteAdjBtn = document.getElementById('modalConfirmDeleteAdjustment');
+    if(confirmDeleteAdjBtn) confirmDeleteAdjBtn.onclick = async ()=>{
+      const adjId = modal.adjId, agentId = modal.agentId;
+      state.adjustments = (state.adjustments||[]).filter(a=>a.id!==adjId);
+      try{ await roomRef('adjustments/'+adjId).remove(); }
+      catch(e){ showError('удаление записи: '+e.message); }
+      modal = { type:'pointsHistory', agentId };
+      render();
+      showToast('запись убрана');
+    };
+
     const confirmDeleteRewardBtn = document.getElementById('modalConfirmDeleteReward');
     if(confirmDeleteRewardBtn) confirmDeleteRewardBtn.onclick = async ()=>{
       state.rewards = state.rewards.filter(r=>r.id!==modal.rewardId);
@@ -4831,6 +4882,7 @@ function attachEvents(){
       const reason = document.getElementById('proposalReason').value.trim();
       const errEl = document.getElementById('negotiateFormError');
       if(!points || points<1){ if(errEl) errEl.textContent = 'впишите количество очков'; return; }
+      if(points > MAX_POINTS_VALUE){ if(errEl) errEl.textContent = `не больше ${MAX_POINTS_VALUE} очков за задание`; return; }
       const msn = state.missions.find(x=>x.id===missionId);
       if(msn){
         msn.proposedPoints = points;
@@ -4847,7 +4899,9 @@ function attachEvents(){
       const title = document.getElementById('mTitle').value.trim();
       const selected = document.querySelector('.mission-assignee-rb:checked');
       const assignedTo = selected ? [selected.value] : [];
-      const points = parseInt(document.getElementById('mPoints').value)||10;
+      let points = parseInt(document.getElementById('mPoints').value)||10;
+      if(points > MAX_POINTS_VALUE) points = MAX_POINTS_VALUE;
+      if(points < 1) points = 1;
       const deadline = document.getElementById('mDeadline').value.trim();
       const errEl = document.getElementById('missionFormError');
       if(!title){ if(errEl) errEl.textContent = 'впишите название задания'; return; }
@@ -5066,7 +5120,9 @@ function attachEvents(){
     const createReward = document.getElementById('modalCreateReward');
     if(createReward) createReward.onclick = async ()=>{
       const title = document.getElementById('rTitle').value.trim();
-      const cost = parseInt(document.getElementById('rCost').value)||10;
+      let cost = parseInt(document.getElementById('rCost').value)||10;
+      if(cost > MAX_POINTS_VALUE) cost = MAX_POINTS_VALUE;
+      if(cost < 1) cost = 1;
       const errEl = document.getElementById('rewardFormError');
       if(!title){ if(errEl) errEl.textContent = 'впишите название награды'; return; }
       const editId = createReward.getAttribute('data-reward-id');
