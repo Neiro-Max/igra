@@ -440,7 +440,9 @@ let safeGameTimerHandle = null;
 // но взлом с первого раза оставался заметно ценнее.
 const SAFE_MAX_ATTEMPTS = 3;
 const SAFE_BONUS_BY_ATTEMPT = [200, 120, 60];
-const SAFE_GAME_SECONDS = 60;
+// Минуты на взлом сейфа не хватало — задача заметно сложнее, чем кажется
+// со стороны. Три минуты дают шанс подумать, а не только угадать.
+const SAFE_GAME_SECONDS = 180;
 function startSafeGame(missionId){
   if(safeGameTimerHandle){ clearInterval(safeGameTimerHandle); safeGameTimerHandle = null; }
   const secret = [0,0,0,0].map(()=>Math.floor(Math.random()*10));
@@ -1704,6 +1706,50 @@ function mergeMessageMaps(primary, legacy){
   return out;
 }
 
+/* ---------- Уведомления о новых заданиях ----------
+   Раньше о новом задании можно было узнать, только зайдя в раздел и заметив
+   там что-то новое. Теперь приложение само подсказывает, как только данные
+   обновились: агенту — про назначенные ему задания, директору — про то,
+   что кто-то отправил работу на проверку.
+   Работает, пока приложение открыто. */
+let seenMissionKeys = null; // null — ещё не заглядывали, первый раз не шумим
+
+function missionNotifyKeys(){
+  const m = me();
+  if(!m) return null;
+  const relevant = state.missions.filter(x=>{
+    if(m.role === 'director') return x.status === 'review';
+    return missionAssignees(x).includes(m.id) && x.status === 'open';
+  });
+  return relevant.map(x=>x.id + ':' + x.status);
+}
+
+function checkMissionNotifications(){
+  if(!myAgentId || view === 'loading') return;
+  const keys = missionNotifyKeys();
+  if(!keys) return;
+  const now = new Set(keys);
+  // Первый проход только запоминает: иначе при каждом входе сыпались бы
+  // уведомления обо всём, что уже давно висит.
+  if(seenMissionKeys === null){ seenMissionKeys = now; return; }
+  const fresh = keys.filter(k=>!seenMissionKeys.has(k));
+  seenMissionKeys = now;
+  if(fresh.length === 0) return;
+
+  const m = me();
+  const isDir = m && m.role === 'director';
+  if(fresh.length === 1){
+    const id = fresh[0].split(':')[0];
+    const msn = state.missions.find(x=>x.id===id);
+    const title = msn ? msn.title : '';
+    showToast(isDir ? `📥 на проверку: ${title}` : `🎯 новое задание: ${title}`, 4000);
+  }else{
+    showToast(isDir ? `📥 на проверке новых: ${fresh.length}` : `🎯 новых заданий: ${fresh.length}`, 4000);
+  }
+  // Короткая вибрация — чтобы заметить, не глядя на экран.
+  try{ if(navigator.vibrate) navigator.vibrate(40); }catch(e){}
+}
+
 // Перерисовка блокируется, пока игрок внутри canvas-игры, иначе холст
 // пересоздаётся посреди партии.
 function inCanvasGame(){
@@ -1711,7 +1757,10 @@ function inCanvasGame(){
     ((snakeGame && !snakeGame.gameOver) || (tetrisGame && !tetrisGame.gameOver)));
 }
 function renderFromRemote(){
-  if(view!=='loading' && myAgentId && !inCanvasGame()) render();
+  if(view!=='loading' && myAgentId && !inCanvasGame()){
+    render();
+    checkMissionNotifications();
+  }
 }
 
 function watchState(){
@@ -2483,6 +2532,7 @@ async function startRoomSession(){
   restoreView();
   setupBackGesture();
   render();
+  checkMissionNotifications(); // первый вызов только запоминает текущий список
   heartbeat(); // не блокируем показ интерфейса ожиданием отклика сервера
 }
 
@@ -3420,7 +3470,7 @@ function renderModal(){
           <div style="font-size:44px; margin-bottom:8px;">💥</div>
           <div class="modal-title">время вышло!</div>
           <p style="font-size:14px; color:var(--text-secondary); margin-bottom:16px;">${safeGame.attemptsLeft > 0
-            ? `сейф самоуничтожился — не успели разгадать код за 60 секунд. осталось попыток: ${safeGame.attemptsLeft}, но бонус за следующую будет меньше (+${SAFE_BONUS_BY_ATTEMPT[Math.min(safeGame.attempt, SAFE_MAX_ATTEMPTS-1)]})`
+            ? `сейф самоуничтожился — не успели разгадать код за ${Math.round(SAFE_GAME_SECONDS/60)} мин. осталось попыток: ${safeGame.attemptsLeft}, но бонус за следующую будет меньше (+${SAFE_BONUS_BY_ATTEMPT[Math.min(safeGame.attempt, SAFE_MAX_ATTEMPTS-1)]})`
             : 'сейф самоуничтожился окончательно — попытки закончились. бонус по этой миссии сгорел, но очки за само задание остаются при вас'}</p>
           <div class="btn-row">
             <button id="modalCancel">закрыть</button>
@@ -4465,6 +4515,12 @@ function attachEvents(){
     el.onclick = ()=>{ modal = {type:'confirmDeleteMessage', channelId: activeChannelId, msgId: el.getAttribute('data-delete-msg')}; render(); };
   });
 
+  // ВНЕ блока модальных окон: эта кнопка живёт на главном экране, а всё, что
+  // ниже if(overlay), выполняется только когда открыто модальное окно. Из-за
+  // этого обработчик не навешивался и кнопка молча ничего не делала.
+  const openReclaimBtn = document.getElementById('openReclaimDirectorBtn');
+  if(openReclaimBtn) openReclaimBtn.onclick = ()=>{ modal = {type:'reclaimDirector'}; render(); };
+
   const overlay = document.getElementById('modalOverlay');
   if(overlay){
     const cancel = document.getElementById('modalCancel');
@@ -4621,9 +4677,6 @@ function attachEvents(){
 
     const deleteRoomBtn = document.getElementById('modalDeleteRoom');
     if(deleteRoomBtn) deleteRoomBtn.onclick = ()=>{ modal = {type:'confirmDeleteRoom'}; render(); };
-
-    const openReclaimBtn = document.getElementById('openReclaimDirectorBtn');
-    if(openReclaimBtn) openReclaimBtn.onclick = ()=>{ modal = {type:'reclaimDirector'}; render(); };
 
     const confirmReclaimBtn = document.getElementById('modalConfirmReclaim');
     if(confirmReclaimBtn) confirmReclaimBtn.onclick = async ()=>{
