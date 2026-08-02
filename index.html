@@ -886,6 +886,92 @@ function scheduleNextSignal(){
    момент вознаграждения — начисление за миссию — проходил вообще незаметно.
    Анимируем только рост и только когда значение реально изменилось, чтобы
    цифры не дёргались при каждой перерисовке от входящих сообщений. */
+/* ---------- Жест «назад» и запоминание экрана ----------
+   Приложение — одна страница, и своей истории переходов у неё не было.
+   Поэтому смахивание от края телефон понимал как «назад», возвращаться было
+   некуда, и человек вылетал из приложения. Теперь на каждый переход внутрь
+   кладётся запись в историю: смахивание возвращает на предыдущий экран,
+   как в любом обычном приложении. Выйти можно только с главного экрана и
+   только двумя смахиваниями подряд — случайным движением уже не получится. */
+const VIEW_KEY = 'hq_last_view';
+let historyReady = false;
+let exitArmed = false;
+let exitArmTimer = null;
+
+/* Держим ровно ОДНУ собственную запись в истории — не больше.
+   Пробовал вести полную цепочку переходов, но записи накапливались, и
+   «назад» переставало предсказуемо выходить из приложения. Навигация здесь
+   плоская: все разделы открываются из штаба через нижнюю панель, поэтому
+   возврат в штаб — единственное осмысленное «назад», и одной записи хватает. */
+function pushHistoryEntry(){
+  try{ history.pushState({ hq:true }, ''); }catch(e){}
+}
+
+// Запоминаем экран, чтобы после случайного выхода открыться там же,
+// а не отматывать всё с начала.
+function rememberView(){
+  try{
+    if(view && view!=='loading') localStorage.setItem(VIEW_KEY, JSON.stringify({ view, channel: activeChannelId||null }));
+  }catch(e){}
+}
+function restoreView(){
+  try{
+    const raw = localStorage.getItem(VIEW_KEY);
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    if(!saved || typeof saved!=='object') return;
+    const allowed = ['home','missions','review','rewards','chat','settings','agents'];
+    if(allowed.indexOf(saved.view) === -1) return;
+    // В чат возвращаемся только если канал ещё существует.
+    if(saved.view==='chat'){
+      if(!saved.channel || !state.channels.some(c=>c.id===saved.channel)) return;
+      activeChannelId = saved.channel;
+    }
+    view = saved.view;
+  }catch(e){}
+}
+
+function setupBackGesture(){
+  if(historyReady) return;
+  historyReady = true;
+  pushHistoryEntry();
+  window.addEventListener('popstate', ()=>{
+    // 1. Открыта модалка — закрываем её. Жест потрачен на окно.
+    if(modal){
+      stopAllGames();
+      modal = (modal && modal.returnTo) || null;
+      render();
+      pushHistoryEntry();
+      return;
+    }
+    // 2. Не в штабе — возвращаемся в штаб.
+    if(view && view!=='home' && view!=='loading' && myAgentId){
+      view = 'home';
+      render();
+      pushHistoryEntry();
+      return;
+    }
+    // 3. Уже в штабе. Первое смахивание только предупреждает.
+    if(!exitArmed){
+      exitArmed = true;
+      showToast('смахните ещё раз, чтобы выйти');
+      if(exitArmTimer) clearTimeout(exitArmTimer);
+      exitArmTimer = setTimeout(()=>{ exitArmed = false; }, 2500);
+      pushHistoryEntry();
+      return;
+    }
+    // 4. Второе смахивание подряд. Наша единственная запись уже израсходована,
+    //    поэтому просто «не удерживать» мало — приложение осталось бы открытым,
+    //    и понадобился бы третий жест. Уходим на шаг назад сами.
+    if(exitArmTimer){ clearTimeout(exitArmTimer); exitArmTimer = null; }
+    exitArmed = false;
+    // historyReady намеренно НЕ сбрасываем: иначе повторный вызов
+    // setupBackGesture() повесил бы второй обработчик на то же событие,
+    // и жесты обрабатывались бы дважды.
+    try{ history.back(); }catch(e){}
+  });
+}
+
 let lastRenderedView = null;
 let lastPointsShown = null;
 let pointsAnimHandle = null;
@@ -956,6 +1042,44 @@ function ensureAuth(){
 // не завершается за отведённое время (плохая связь, временный сбой сервера,
 // заблокированный websocket на некоторых мобильных браузерах и т.п.), не
 // блокируем интерфейс навсегда, а продолжаем с тем, что есть.
+/* ---------- Состояние связи с базой ----------
+   Firebase подключается к серверу не при загрузке страницы, а при первом
+   обращении к данным. На мобильной связи рукопожатие занимает несколько
+   секунд — и раньше это выпадало ровно на ввод кода доступа, потому что
+   это самое первое обращение за всю жизнь приложения. Пользователь видел
+   «проверьте интернет», хотя интернет был в порядке, а со второй попытки
+   всё срабатывало мгновенно: соединение к тому моменту уже стояло.
+
+   Лечим двумя вещами: подключаемся заранее, в фоне, сразу при запуске —
+   и умеем отличать «нет сети» от «ещё подключаемся». */
+let firebaseOnline = false;
+function warmUpConnection(){
+  try{
+    db.ref('.info/connected').on('value', snap=>{ firebaseOnline = !!snap.val(); });
+  }catch(e){}
+}
+// Ждёт установки соединения. Возвращает true, если связь появилась.
+function waitForConnection(ms){
+  if(firebaseOnline) return Promise.resolve(true);
+  return new Promise(resolve=>{
+    let settled = false;
+    let ref = null, cb = null, timer = null;
+    const finish = (ok)=>{
+      if(settled) return;
+      settled = true;
+      if(timer) clearTimeout(timer);
+      try{ if(ref && cb) ref.off('value', cb); }catch(e){}
+      resolve(ok);
+    };
+    try{
+      ref = db.ref('.info/connected');
+      cb = snap=>{ if(snap.val()) finish(true); };
+      ref.on('value', cb);
+    }catch(e){ finish(false); return; }
+    timer = setTimeout(()=>finish(false), ms);
+  });
+}
+
 function withTimeout(promise, ms, warningMessage){
   let timeoutId;
   const timeout = new Promise(resolve=>{
@@ -2009,6 +2133,7 @@ function render(){
 
   const viewChanged = view !== lastRenderedView;
   lastRenderedView = view;
+  if(viewChanged) rememberView();
   root.innerHTML = `
     <div class="screen${viewChanged?' screen-enter':''}" style="padding-bottom:${view==='chat'?'18px':'112px'}; ${view==='chat'?'display:flex;flex-direction:column;min-height:100vh;':''}">
       ${body}
@@ -2214,7 +2339,8 @@ function attachRoomEvents(){
       // чтобы плохая связь не превращала это в долгое зависание.
       for(let attempt=0; attempt<8; attempt++){
         const candidate = generateRoomCode();
-        const snap = await withTimeout(db.ref('rooms/'+candidate+'/appState').once('value'), 6000, null);
+        if(!firebaseOnline) await waitForConnection(9000);
+        const snap = await withTimeout(db.ref('rooms/'+candidate+'/appState').once('value'), 9000, null);
         if(snap === '__timeout__'){ timedOut = true; break; }
         if(!snap.exists()){ code = candidate; break; }
       }
@@ -2234,17 +2360,24 @@ function attachRoomEvents(){
     const code = input.value.trim().toUpperCase();
     const errEl = document.getElementById('joinRoomError');
     if(!code){ if(errEl) errEl.textContent = 'впишите код доступа'; return; }
-    if(errEl) errEl.textContent = 'проверяем код...';
     joinBtn.disabled = true;
     let snap;
     try{
-      // Таймаут — чтобы плохая связь не превращала это в вечное "проверяем код...",
-      // из-за которого раньше приходилось перезагружать страницу несколько раз.
-      snap = await withTimeout(
-        db.ref('rooms/'+code+'/appState').once('value'),
-        10000,
-        null
-      );
+      // Сначала дожидаемся соединения — это и есть та задержка, которая
+      // раньше съедала таймаут и выдавалась за проблему с интернетом.
+      if(!firebaseOnline){
+        if(errEl) errEl.textContent = 'подключаемся к штабу...';
+        await waitForConnection(9000);
+      }
+      if(errEl) errEl.textContent = 'проверяем код...';
+      const ask = ()=>withTimeout(db.ref('rooms/'+code+'/appState').once('value'), 9000, null);
+      snap = await ask();
+      // Одна повторная попытка молча: заставлять человека жать кнопку второй
+      // раз только чтобы прогреть соединение — плохая идея.
+      if(snap === '__timeout__'){
+        if(errEl) errEl.textContent = 'связь медленная, пробуем ещё раз...';
+        snap = await ask();
+      }
     }catch(e){
       if(errEl) errEl.textContent = 'не удалось проверить код: ' + e.message + ' — попробуйте ещё раз';
       joinBtn.disabled = false;
@@ -2252,7 +2385,9 @@ function attachRoomEvents(){
     }
     joinBtn.disabled = false;
     if(snap === '__timeout__'){
-      if(errEl) errEl.textContent = 'проверка кода занимает слишком много времени — проверьте интернет и нажмите «войти по коду» ещё раз';
+      if(errEl) errEl.textContent = firebaseOnline
+        ? 'сервер не отвечает. связь есть, но штаб не откликается — попробуйте через минуту'
+        : 'нет связи с интернетом — проверьте подключение и нажмите «войти по коду» ещё раз';
       return;
     }
     if(!snap.exists()){
@@ -2294,6 +2429,10 @@ async function startRoomSession(){
   watchState();
   watchPresence();
   view = 'home';
+  // Возвращаемся на тот экран, где человек был в прошлый раз — тогда
+  // случайный вылет перестаёт стоить ему пути обратно.
+  restoreView();
+  setupBackGesture();
   render();
   heartbeat(); // не блокируем показ интерфейса ожиданием отклика сервера
 }
@@ -4691,6 +4830,10 @@ function scrollChatBottom(){
       location.reload();
     });
   }
+
+  // Подключаемся к базе сразу, не дожидаясь первого запроса данных. Пока
+  // человек читает экран и набирает код, рукопожатие успевает пройти.
+  warmUpConnection();
 
   await withTimeout(ensureAuth(), 6000, null);
   await loadTheme();
