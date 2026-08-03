@@ -66,7 +66,7 @@
      не добавляет веса файлу и подстраивается под любой размер экрана. */
   body[data-theme="shq"]{
     background-image:
-      radial-gradient(120% 70% at 50% -10%, rgba(31,211,232,0.14), transparent 60%),
+      radial-gradient(120% 70% at 50% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
       radial-gradient(90% 60% at 50% 110%, rgba(91,127,232,0.10), transparent 65%),
       linear-gradient(rgba(120,190,220,0.045) 1px, transparent 1px),
       linear-gradient(90deg, rgba(120,190,220,0.045) 1px, transparent 1px);
@@ -84,37 +84,40 @@
   body[data-theme="shq"] #nav{
     background: linear-gradient(180deg, #22384C 0%, #16283A 55%, #0F1E2C 100%);
     border-color:#31536E;
-    box-shadow: inset 0 1px 0 rgba(180,225,245,0.22), 0 10px 30px rgba(0,0,0,0.55);
+    box-shadow: inset 0 1px 0 rgba(180,225,245,0.22), 0 10px 30px rgba(0,0,0,0.55), 0 0 24px -6px var(--glow);
   }
   body[data-theme="shq"] #nav button{
     background: linear-gradient(180deg, #2B4560 0%, #1B3247 100%);
     border:1px solid #3A5E7C;
     box-shadow: inset 0 1px 0 rgba(180,225,245,0.18), 0 2px 4px rgba(0,0,0,0.4);
   }
+  /* Заливка активной кнопки строится из --accent-strong: он уже подобран
+     так, чтобы белый текст на нём читался при любом оттенке. Затемнение
+     снизу контраст только повышает, поэтому подсветка безопасна. */
   body[data-theme="shq"] #nav button.active{
-    background: linear-gradient(180deg, #1FD3E8 0%, #149FB8 100%);
-    border-color:#6FF0FF;
-    color:#04222C;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 0 20px rgba(31,211,232,0.55);
+    background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(0,0,0,0.22) 100%), var(--accent-strong);
+    border-color: var(--accent);
+    color:#fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 0 20px var(--glow);
   }
-  body[data-theme="shq"] #nav button.active .nav-icon{ color:#04222C; }
+  body[data-theme="shq"] #nav button.active .nav-icon{ color:#fff; }
 
   /* Эмблема: крупнее, с кольцом подсветки и вращающимся ободком */
   body[data-theme="shq"] .brand-mark{
     width:62px; height:62px;
     background: radial-gradient(circle at 50% 35%, #1B3B4E 0%, #0C1E2B 70%);
-    box-shadow: 0 0 0 2px #1FD3E8, 0 0 22px rgba(31,211,232,0.55), inset 0 2px 6px rgba(0,0,0,0.6);
+    box-shadow: 0 0 0 2px var(--accent), 0 0 22px var(--glow), inset 0 2px 6px rgba(0,0,0,0.6);
     position:relative;
   }
   body[data-theme="shq"] .brand-mark::after{
     content:''; position:absolute; inset:-7px; border-radius:50%;
-    border:1px dashed rgba(31,211,232,0.45);
+    border:1px dashed var(--accent); opacity:0.5;
     animation: shqRing 14s linear infinite;
   }
   @keyframes shqRing{ to{ transform:rotate(360deg); } }
   @media (prefers-reduced-motion: reduce){ body[data-theme="shq"] .brand-mark::after{ animation:none; } }
-  body[data-theme="shq"] .brand-mark i{ color:#7FF0FF; font-size:19px; text-shadow:0 0 10px rgba(31,211,232,0.8); }
-  body[data-theme="shq"] .brand-title{ color:#CFEBFF; font-size:15px; text-shadow:0 0 12px rgba(31,211,232,0.35); }
+  body[data-theme="shq"] .brand-mark i{ color:var(--accent); font-size:19px; text-shadow:0 0 10px var(--glow); }
+  body[data-theme="shq"] .brand-title{ color:#CFEBFF; font-size:15px; }
 
   /* Кнопки быстрого доступа под шапкой — тоже «металл» */
   body[data-theme="shq"] .quick-tile{
@@ -123,7 +126,7 @@
     box-shadow: inset 0 1px 0 rgba(180,225,245,0.2), 0 3px 8px rgba(0,0,0,0.45);
   }
   body[data-theme="shq"] .quick-tile .quick-glyph{
-    filter: drop-shadow(0 0 6px rgba(31,211,232,0.7));
+    filter: drop-shadow(0 0 6px var(--glow));
   }
 
   /* Карточки: лёгкий градиент вместо плоской заливки. Светлота держится
@@ -140,15 +143,9 @@
     background: linear-gradient(180deg, #182B3C 0%, #11202D 100%);
     border-color:#2A455C;
   }
-  body[data-theme="shq"] h2{
-    color:#8FD8EA; text-shadow:0 0 10px rgba(31,211,232,0.25);
-  }
-  body[data-theme="shq"] .stat-value{
-    color:#BFF3FF; text-shadow:0 0 14px rgba(31,211,232,0.45);
-  }
-  body[data-theme="shq"] .goal-fill{
-    box-shadow:0 0 12px rgba(31,211,232,0.6);
-  }
+  body[data-theme="shq"] h2{ color:#8FD8EA; }
+  body[data-theme="shq"] .stat-value{ color:#DFF6FF; text-shadow:0 0 14px var(--glow); }
+  body[data-theme="shq"] .goal-fill{ box-shadow:0 0 12px var(--glow); }
   body[data-theme="shq"] .marquee-wrap{
     box-shadow: inset 0 1px 0 rgba(180,225,245,0.18), 0 4px 14px rgba(0,0,0,0.45);
   }
@@ -158,10 +155,12 @@
   .quick-img-wrap{ width:52px; height:52px; display:flex; align-items:center; justify-content:center; }
   .quick-img{ width:100%; height:100%; object-fit:contain; display:block; }
   .quick-img.img-missing{ display:none; }
-  .quick-fallback{ display:none; font-style:normal; align-items:center; justify-content:center;
+  /* Селекторы с двумя классами — иначе .seal-sm на запасном значке
+     перебивал display:none, и картинка со значком показывались разом. */
+  .quick-img-wrap > .quick-fallback{ display:none; font-style:normal; align-items:center; justify-content:center;
     width:46px; height:46px; border-radius:14px; background:var(--panel-alt); color:var(--text);
     font-size:18px; box-shadow:0 0 0 2px var(--border-strong); }
-  .quick-img.img-missing + .quick-fallback{ display:flex; }
+  .quick-img-wrap > .quick-img.img-missing + .quick-fallback{ display:flex; }
   .rules-heading{ font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.6px;
     text-transform:uppercase; color:var(--accent-ink); background:var(--accent-tint);
     border-radius:8px; padding:6px 10px; margin:16px 0 10px; }
