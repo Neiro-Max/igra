@@ -77,8 +77,80 @@
   body[data-theme="shq"] .modal-sheet{
     box-shadow: 0 0 0 1px rgba(31,211,232,0.10), 0 8px 28px rgba(0,0,0,0.45);
   }
+  /* Дальше — попытка получить «металл» без картинок. Объём в интерфейсе
+     делается тремя вещами: градиент сверху вниз (свет падает сверху),
+     светлая линия по верхнему краю (блик) и тёмная тень снизу. Живой
+     графики это не заменит, но плоскую заливку оживляет заметно. */
+  body[data-theme="shq"] #nav{
+    background: linear-gradient(180deg, #22384C 0%, #16283A 55%, #0F1E2C 100%);
+    border-color:#31536E;
+    box-shadow: inset 0 1px 0 rgba(180,225,245,0.22), 0 10px 30px rgba(0,0,0,0.55);
+  }
+  body[data-theme="shq"] #nav button{
+    background: linear-gradient(180deg, #2B4560 0%, #1B3247 100%);
+    border:1px solid #3A5E7C;
+    box-shadow: inset 0 1px 0 rgba(180,225,245,0.18), 0 2px 4px rgba(0,0,0,0.4);
+  }
   body[data-theme="shq"] #nav button.active{
-    box-shadow: 0 0 18px rgba(31,211,232,0.45);
+    background: linear-gradient(180deg, #1FD3E8 0%, #149FB8 100%);
+    border-color:#6FF0FF;
+    color:#04222C;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 0 20px rgba(31,211,232,0.55);
+  }
+  body[data-theme="shq"] #nav button.active .nav-icon{ color:#04222C; }
+
+  /* Эмблема: крупнее, с кольцом подсветки и вращающимся ободком */
+  body[data-theme="shq"] .brand-mark{
+    width:62px; height:62px;
+    background: radial-gradient(circle at 50% 35%, #1B3B4E 0%, #0C1E2B 70%);
+    box-shadow: 0 0 0 2px #1FD3E8, 0 0 22px rgba(31,211,232,0.55), inset 0 2px 6px rgba(0,0,0,0.6);
+    position:relative;
+  }
+  body[data-theme="shq"] .brand-mark::after{
+    content:''; position:absolute; inset:-7px; border-radius:50%;
+    border:1px dashed rgba(31,211,232,0.45);
+    animation: shqRing 14s linear infinite;
+  }
+  @keyframes shqRing{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){ body[data-theme="shq"] .brand-mark::after{ animation:none; } }
+  body[data-theme="shq"] .brand-mark i{ color:#7FF0FF; font-size:19px; text-shadow:0 0 10px rgba(31,211,232,0.8); }
+  body[data-theme="shq"] .brand-title{ color:#CFEBFF; font-size:15px; text-shadow:0 0 12px rgba(31,211,232,0.35); }
+
+  /* Кнопки быстрого доступа под шапкой — тоже «металл» */
+  body[data-theme="shq"] .quick-tile{
+    background: linear-gradient(180deg, #26405A 0%, #16283A 100%);
+    border:1px solid #37597A; border-radius:14px; padding:8px 4px;
+    box-shadow: inset 0 1px 0 rgba(180,225,245,0.2), 0 3px 8px rgba(0,0,0,0.45);
+  }
+  body[data-theme="shq"] .quick-tile .quick-glyph{
+    filter: drop-shadow(0 0 6px rgba(31,211,232,0.7));
+  }
+
+  /* Карточки: лёгкий градиент вместо плоской заливки. Светлота держится
+     рядом со значением --panel, чтобы не сбить проверенный контраст текста. */
+  body[data-theme="shq"] .card{
+    background: linear-gradient(180deg, #17293A 0%, #101E2B 100%);
+    border-color:#2A455C;
+  }
+  body[data-theme="shq"] .modal-sheet{
+    background: linear-gradient(180deg, #16283A 0%, #0E1C29 100%);
+    border-color:#2A455C;
+  }
+  body[data-theme="shq"] .choice-card{
+    background: linear-gradient(180deg, #182B3C 0%, #11202D 100%);
+    border-color:#2A455C;
+  }
+  body[data-theme="shq"] h2{
+    color:#8FD8EA; text-shadow:0 0 10px rgba(31,211,232,0.25);
+  }
+  body[data-theme="shq"] .stat-value{
+    color:#BFF3FF; text-shadow:0 0 14px rgba(31,211,232,0.45);
+  }
+  body[data-theme="shq"] .goal-fill{
+    box-shadow:0 0 12px rgba(31,211,232,0.6);
+  }
+  body[data-theme="shq"] .marquee-wrap{
+    box-shadow: inset 0 1px 0 rgba(180,225,245,0.18), 0 4px 14px rgba(0,0,0,0.45);
   }
   .rules-heading{ font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.6px;
     text-transform:uppercase; color:var(--accent-ink); background:var(--accent-tint);
@@ -2759,19 +2831,19 @@ function renderHome(){
       </div>
     </div>
     <div style="display:flex; justify-content:space-around; margin-bottom:20px;">
-      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-rules="1" aria-label="правила игры">
-        <div class="seal-sm" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">📖</div>
+      <div class="quick-tile" style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-rules="1" aria-label="правила игры">
+        <div class="seal-sm quick-glyph" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">📖</div>
         <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">правила</span>
       </div>
-      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-games-hub="1" aria-label="мини-игры">
-        <div class="seal-sm glow-btn" style="background:var(--accent); color:#0A1F19; width:46px; height:46px; font-size:19px; box-shadow:0 0 0 2px var(--border-strong);">🎮</div>
+      <div class="quick-tile" style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-games-hub="1" aria-label="мини-игры">
+        <div class="seal-sm glow-btn quick-glyph" style="background:var(--accent); color:#0A1F19; width:46px; height:46px; font-size:19px; box-shadow:0 0 0 2px var(--border-strong);">🎮</div>
         <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">игры</span>
       </div>
-      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-theme="1" aria-label="сменить цвет темы">
-        <div class="seal-sm" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">🎨</div>
+      <div class="quick-tile" style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-theme="1" aria-label="сменить цвет темы">
+        <div class="seal-sm quick-glyph" style="background:var(--panel-alt); color:var(--text); width:46px; height:46px; font-size:18px; box-shadow:0 0 0 2px var(--border-strong);">🎨</div>
         <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">цвет</span>
       </div>
-      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-profile="1">
+      <div class="quick-tile" style="display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;" data-open-profile="1">
         <div class="seal-sm" style="${sealStyle(m.color)}; width:46px; height:46px; font-size:15px; box-shadow:0 0 0 2px var(--border-strong);">${initials(m.name)}</div>
         <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">профиль</span>
       </div>
