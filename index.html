@@ -61,6 +61,25 @@
   .goal-track{ height:10px; border-radius:6px; background:var(--panel-alt); border:1px solid var(--border-strong); overflow:hidden; }
   .goal-fill{ height:100%; border-radius:5px; background:linear-gradient(90deg, var(--accent-strong), var(--violet-strong)); transition:width .6s ease-out; }
   .goal-left{ font-size:12px; color:var(--text-secondary); margin-top:6px; }
+  /* Фон в стиле «штаб»: координатная сетка и мягкое свечение сверху.
+     Рисуется градиентами, без картинок — не грузится, не кэшируется,
+     не добавляет веса файлу и подстраивается под любой размер экрана. */
+  body[data-theme="shq"]{
+    background-image:
+      radial-gradient(120% 70% at 50% -10%, rgba(31,211,232,0.14), transparent 60%),
+      radial-gradient(90% 60% at 50% 110%, rgba(91,127,232,0.10), transparent 65%),
+      linear-gradient(rgba(120,190,220,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120,190,220,0.045) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px;
+    background-attachment: fixed;
+  }
+  body[data-theme="shq"] .card,
+  body[data-theme="shq"] .modal-sheet{
+    box-shadow: 0 0 0 1px rgba(31,211,232,0.10), 0 8px 28px rgba(0,0,0,0.45);
+  }
+  body[data-theme="shq"] #nav button.active{
+    box-shadow: 0 0 18px rgba(31,211,232,0.45);
+  }
   .rules-heading{ font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.6px;
     text-transform:uppercase; color:var(--accent-ink); background:var(--accent-tint);
     border-radius:8px; padding:6px 10px; margin:16px 0 10px; }
@@ -1192,6 +1211,15 @@ let identityNotice = null; // одноразовое сообщение на э�
 const SEAL_COLORS = ["#12C88E","#FFA724","#FF5A4E","#5B8DEF","#F2569C","#8C6BF2"];
 
 const THEMES = {
+  // Стиль «штаб»: холодный тёмно-синий металл с бирюзовой подсветкой.
+  // Панели намеренно тёмные — светлая карточка посреди тёмного экрана
+  // слепит вечером, когда глаз уже привык к темноте.
+  shq:    { label:"штаб",     mode:"dark",  bg:"#0A1622", panel:"#12212F", panelAlt:"#1A2C3D", border:"#263E52", borderStrong:"#3C5A6E",
+            text:"#E8F4FF", textSecondary:"#9DB8CE", textMuted:"#6B8399",
+            amber:"#FFC24D", amberTint:"rgba(255,194,77,0.16)", amberInk:"#FFDD9B",
+            danger:"#FF5F6D", dangerTint:"rgba(255,95,109,0.16)", dangerInk:"#FF9AA3",
+            violet:"#5B7FE8", violetTint:"rgba(91,127,232,0.18)",
+            accentH:189, accentS:92, accentL:55, swatch:"#1FD3E8" },
   neon:   { label:"неон",     mode:"dark",  bg:"#0B0F17", panel:"#141C26", panelAlt:"#1B2530", border:"#293542", borderStrong:"#3B4A59",
             text:"#EAF2FF", textSecondary:"#93A8BD", textMuted:"#5C6E80",
             amber:"#FFD23F", amberTint:"rgba(255,210,63,0.18)", amberInk:"#FFE68A",
@@ -1326,6 +1354,9 @@ function applyTheme(){
   const accentInk = `hsl(${h},${s}%,${inkL}%)`;
   const root = document.documentElement.style;
   const panelRgb = flatten(t.panel, [255,255,255]);
+  // Имя темы на <body> — по нему цепляются оформительские детали,
+  // которые нельзя выразить одними переменными цвета (сетка, свечения).
+  try{ if(document.body) document.body.setAttribute('data-theme', themeState.theme || 'neon'); }catch(e){}
 
   root.setProperty('--bg', t.bg);
   root.setProperty('--panel', t.panel);
