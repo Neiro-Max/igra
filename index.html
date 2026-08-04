@@ -651,6 +651,21 @@
   .id-card-label{font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase;}
 
   ::-webkit-scrollbar{width:0; height:0;}
+
+  /* --- Нижняя панель без плиток: значок был мелким, потому что задумывался
+     как запасной вариант «на случай если картинка не пришла», а стал
+     основным. Увеличиваем и выравниваем подпись по центру кнопки. --- */
+  #nav .nav-fallback{
+    font-size:23px;
+    padding:14px 0 12px;
+    border-radius:16px;
+  }
+  #nav .nav-plate.img-missing ~ .nav-label{
+    width:100%; text-align:center;
+    font-size:11px; line-height:1.2;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+
 </style>
 </head>
 <body>
