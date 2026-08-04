@@ -602,7 +602,6 @@
   .reward-card{display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:13px 14px; margin-bottom:10px; box-shadow:0 2px 10px rgba(21,36,32,0.05);}
   .reward-icon{width:38px; height:38px; border-radius:8px; background:var(--panel-alt); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;}
   .reward-title{font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .agent-pts{ color:var(--text-muted); }
   .reward-cost{font-size:12px; font-family:var(--mono); color:var(--amber-ink); font-weight:700;}
 
   /* Channel list */
@@ -647,127 +646,6 @@
   .id-card-label{font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase;}
 
   ::-webkit-scrollbar{width:0; height:0;}
-
-  /* ==========================================================
-     МЕТАЛЛИЧЕСКИЕ ПЛАШКИ — экран наград.
-     Весь блок висит на body[data-mode="dark"]: метку проставляет
-     applyTheme, она уже была сделана для фона с картой. В светлых
-     темах (тропики, океан) светлая сталь на светлом фоне сливается,
-     поэтому там не включаем.
-     Блок дописан НИЖЕ всех остальных стилей и ничего не переписывает.
-     Чтобы откатить оформление — удалить блок целиком.
-     ========================================================== */
-
-  /* --- большая плашка «доступно очков» --- */
-  body.metal-ok[data-mode="dark"] .metal-panel{
-    background-image:url(m-panel.png);
-    background-size:100% 100%;
-    background-repeat:no-repeat;
-    background-color:transparent;
-    border-color:transparent;
-    box-shadow:none;
-    /* поля увеличены: у картинки толстая рамка, при родных 14px
-       текст ложился прямо на неё */
-    padding:22px 26px 24px 20px;
-  }
-  body.metal-ok[data-mode="dark"] .metal-panel .stat-label,
-  body.metal-ok[data-mode="dark"] .metal-panel .goal-label,
-  body.metal-ok[data-mode="dark"] .metal-panel .goal-left{ color:#4A6373; }
-  body.metal-ok[data-mode="dark"] .metal-panel .stat-value,
-  body.metal-ok[data-mode="dark"] .metal-panel .goal-title{ color:#16242F; }
-  body.metal-ok[data-mode="dark"] .metal-panel .goal-nums{ color:#0D6577; }
-  body.metal-ok[data-mode="dark"] .metal-panel .goal-track{
-    background:rgba(20,40,55,0.35); border-color:rgba(20,40,55,0.45);
-  }
-  body.metal-ok[data-mode="dark"] .metal-panel .goal-box{ border-top-color:rgba(20,40,55,0.25); }
-
-  /* --- карточка награды --- */
-  body.metal-ok[data-mode="dark"] .reward-card{
-    background-image:url(m-card.png);
-    background-size:100% 100%;
-    background-repeat:no-repeat;
-    background-color:transparent;
-    border-color:transparent;
-    box-shadow:none;
-    /* сверху у картинки язычок-ручка, родных 13px мало — текст лез под него */
-    padding:19px 15px 14px;
-  }
-  body.metal-ok[data-mode="dark"] .reward-card .reward-title{ color:#16242F; }
-  body.metal-ok[data-mode="dark"] .reward-card .reward-cost{ color:#7A5A18; }
-  body.metal-ok[data-mode="dark"] .reward-card .reward-icon{
-    background-image:url(m-tile.png);
-    background-size:100% 100%;
-    background-repeat:no-repeat;
-    background-color:transparent;
-    color:#2B4658;
-  }
-
-  /* --- кнопки внутри плашки и карточек ---
-     Картинка режется на девять кусков: углы и фаска остаются как есть,
-     тянется только ровная середина. Поэтому надписи разной длины
-     получают одинаковую рамку.
-     border-width подобран под реальную высоту кнопок в приложении:
-     обычная ≈41px, мелкая .btn-ghost-sm ≈28px. Одним значением
-     не обойтись — на мелкой рамка съедает текст. */
-  body.metal-ok[data-mode="dark"] .metal-panel button,
-  body.metal-ok[data-mode="dark"] .reward-card button{
-    background:transparent;
-    color:#16242F;
-    border-style:solid;
-    border-width:9px 14px;
-    border-image-source:url(m-btn.png);
-    border-image-slice:48 62 fill;
-    border-image-repeat:stretch;
-    border-radius:0;
-    box-shadow:none;
-    padding:4px 6px;
-  }
-  body.metal-ok[data-mode="dark"] .metal-panel button:active,
-  body.metal-ok[data-mode="dark"] .reward-card button:active{
-    border-image-source:url(m-btn-on.png);
-    border-image-slice:50 62 fill;
-    color:#E8F4FF;
-  }
-  body.metal-ok[data-mode="dark"] .metal-panel .btn-ghost-sm,
-  body.metal-ok[data-mode="dark"] .reward-card .btn-ghost-sm{
-    border-width:6px 11px;
-    padding:2px 4px;
-  }
-
-
-  /* --- карточка агента (баланс очков): тот же металл, что у наград,
-     иначе на одном экране два разных материала — ровно то, из-за чего
-     экран и выглядел разнобойным. --- */
-  body.metal-ok[data-mode="dark"] .metal-card{
-    background-image:url(m-card.png);
-    background-size:100% 100%;
-    background-repeat:no-repeat;
-    background-color:transparent;
-    border-color:transparent;
-    box-shadow:none;
-    /* сверху язычок картинки, поэтому поле больше нижнего */
-    padding:19px 15px 14px;
-    color:#16242F;
-  }
-  body.metal-ok[data-mode="dark"] .metal-card .agent-pts{ color:#4A6373; }
-  body.metal-ok[data-mode="dark"] .metal-card button{
-    background:transparent;
-    color:#16242F;
-    border-style:solid;
-    border-width:6px 11px;
-    border-image-source:url(m-btn.png);
-    border-image-slice:48 62 fill;
-    border-image-repeat:stretch;
-    border-radius:0;
-    box-shadow:none;
-    padding:2px 4px;
-  }
-  body.metal-ok[data-mode="dark"] .metal-card button:active{
-    border-image-source:url(m-btn-on.png);
-    border-image-slice:50 62 fill;
-    color:#E8F4FF;
-  }
-
 </style>
 </head>
 <body>
@@ -2708,13 +2586,13 @@ function renderNav(){
   return `
   <div id="nav">
     <div id="nav-grille" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    <button data-nav="home" class="${view==='home'?'active':''}"><img class="nav-plate" src="nav-home.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◈</i><span class="nav-label">штаб</span></button>
-    <button data-nav="missions" class="${view==='missions'?'active':''}"><img class="nav-plate" src="nav-missions.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✦</i><span class="nav-label">миссии</span></button>
+    <button data-nav="home" class="${view==='home'?'active':''}"><img class="nav-plate img-missing" src="nav-home.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◈</i><span class="nav-label">штаб</span></button>
+    <button data-nav="missions" class="${view==='missions'?'active':''}"><img class="nav-plate img-missing" src="nav-missions.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✦</i><span class="nav-label">миссии</span></button>
     ${director ? `<button data-nav="review" class="${view==='review'?'active':''}" style="position:relative">
-        <img class="nav-plate" src="nav-review.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✓</i><span class="nav-label">проверка</span>
+        <img class="nav-plate img-missing" src="nav-review.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✓</i><span class="nav-label">проверка</span>
         ${pendingReview>0?`<span class="badge pulse-badge">${pendingReview}</span>`:''}
       </button>` : ''}
-    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><img class="nav-plate" src="nav-rewards.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◆</i><span class="nav-label">награды</span></button>
+    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><img class="nav-plate img-missing" src="nav-rewards.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◆</i><span class="nav-label">награды</span></button>
   </div>`;
 }
 
@@ -3410,7 +3288,7 @@ function renderRewards(){
     ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
       <button class="btn-primary btn-block" style="margin-bottom:4px" id="newRewardBtn">+ вписать награду</button>
       <p class="btn-caption">например: "поход в кино" за 50 очков. награда остаётся в списке и после получения — её можно выдавать снова</p>`
-      : `<div class="card metal-panel"><div class="stat-label">доступно очков</div><div class="stat-value" data-count-to="${pts}">${pts}</div>
+      : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value" data-count-to="${pts}">${pts}</div>
           ${pending>0?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">ещё ${pending} очков в запросах, ждут подтверждения</div>`:''}
           ${goalProgressHtml(m.id)}
           <button class="btn-ghost-sm" style="margin-top:12px;" data-show-history="${m.id}">📜 история начислений и трат</button>
@@ -3454,12 +3332,12 @@ function renderRewards(){
     <h2>баланс очков агентов</h2>
     <p class="btn-caption" style="margin-top:0;">используйте это только для исправления ошибок — обычно очки начисляются автоматически при подтверждении миссий</p>
     ${agents.map(a=>`
-      <div class="card metal-card" style="display:flex; align-items:center; justify-content:space-between;">
+      <div class="card" style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px;">
         <div style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">
           <div class="seal-sm" style="${sealStyle(a.color)}">${initials(a.name)}</div>
           <div style="min-width:0;">
             <div style="font-size:14px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(a.name)}</div>
-            <div class="agent-pts" style="font-size:12px;">${availablePoints(a.id)} очков</div>
+            <div style="font-size:12px; color:var(--text-muted);">${availablePoints(a.id)} очков</div>
           </div>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
@@ -5724,27 +5602,6 @@ function scrollChatBottom(){
   window.addEventListener('beforeunload', ()=>{
     if(myAgentId && roomId){ try{ roomRef('presence/'+myAgentId).remove(); }catch(e){} }
   });
-})();
-</script>
-
-<script>
-// Металл включается ТОЛЬКО после того, как браузер загрузил картинку.
-// Раньше стили применялись сразу: если PNG не находился (не залит,
-// опечатка в имени, старый кэш) — карточки оставались без фона,
-// а текст был уже перекрашен в тёмный, и экран выглядел пустым.
-// Теперь при любой осечке оформление просто не включится,
-// и приложение останется таким, каким было.
-(function(){
-  try{
-    var probe = new Image();
-    probe.onload = function(){
-      if(document.body) document.body.classList.add('metal-ok');
-    };
-    probe.onerror = function(){
-      // намеренно тихо: обычный вид — приемлемый исход
-    };
-    probe.src = 'm-card.png';
-  }catch(e){}
 })();
 </script>
 </body>
