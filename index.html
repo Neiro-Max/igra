@@ -225,6 +225,15 @@
   .quick-img-wrap > .quick-img.img-missing + .quick-fallback{ display:flex; }
   /* Корзина стоит в одной строке со статусом, а не отдельной кнопкой снизу:
      так карточка короче, а действие не выглядит основным. */
+  /* Подсказки разделов — тот же материал, что у статусов: тонкая рамка,
+     приглушённая подложка, прямоугольная форма вместо пилюли. Эмодзи-стрелки
+     убраны: рядом с металлическими иконками они смотрелись из другой оперы. */
+  .section-hint{
+    display:inline-block; font-family:var(--mono); font-size:11px; font-weight:700;
+    letter-spacing:0.5px; padding:4px 10px; border-radius:8px; margin-bottom:10px;
+  }
+  .hint-accent{ background:var(--accent-tint); color:var(--accent-ink); border:1px solid var(--accent); }
+  .hint-amber{ background:var(--amber-tint); color:var(--amber-ink); border:1px solid var(--amber); }
   .mission-status-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .mission-del{
     flex-shrink:0; width:34px; height:34px; padding:0; font-size:15px; line-height:1;
@@ -265,7 +274,7 @@
   }
   @media (prefers-reduced-motion: reduce){ .count-pop{ animation:none; } }
   .toast-item{
-    background:linear-gradient(135deg, var(--accent-strong), var(--violet-strong)); color:#fff; font-weight:700; font-size:14px;
+    background:var(--accent-strong); color:#fff; font-weight:700; font-size:14px;
     padding:12px 18px; border-radius:20px; box-shadow:0 6px 20px rgba(0,0,0,0.25), 0 0 14px 0 var(--glow);
     animation: toastIn .3s ease-out; text-align:center;
   }
@@ -405,9 +414,17 @@
   p.lead{color:var(--text-secondary); font-size:14px; line-height:1.6; margin-bottom:20px;}
 
   /* Inputs */
+  /* Поля выглядят утопленными: внутренняя тень сверху читается как
+     углубление в панели, в отличие от кнопок, которые выступают. */
   input, textarea, select{
     width:100%; background:var(--panel-alt); border:1px solid var(--border-strong); color:var(--text);
-    padding:11px 12px; border-radius:6px; font-size:14px; font-family:var(--sans); outline:none;
+    padding:11px 12px; border-radius:10px; font-size:14px; font-family:var(--sans); outline:none;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.22);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, textarea:focus, select:focus{
+    border-color:var(--accent);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.22), 0 0 0 3px var(--accent-tint);
   }
   input[type="checkbox"], input[type="radio"]{
     width:18px; height:18px; padding:0; border-radius:4px; flex-shrink:0; accent-color:var(--accent);
@@ -419,13 +436,25 @@
   p.btn-caption{ font-size:12px; color:var(--text-muted); margin:6px 0 16px; line-height:1.4; }
 
   button{
-    font-family:var(--sans); font-size:14px; font-weight:500; border-radius:6px; border:1px solid var(--border-strong);
-    background:transparent; color:var(--text); padding:11px 16px; cursor:pointer; transition:opacity .15s;
+    font-family:var(--sans); font-size:14px; font-weight:500; border-radius:10px; border:1px solid var(--border-strong);
+    background:var(--panel-alt); color:var(--text); padding:11px 16px; cursor:pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 1px 3px rgba(0,0,0,0.18);
+    transition:opacity .15s, box-shadow .15s;
   }
-  button:active{opacity:0.7;}
-  .btn-primary{background:linear-gradient(135deg, var(--accent-strong), var(--violet-strong)); border-color:transparent; color:#fff; font-weight:700;}
+  button:active{ opacity:0.85; box-shadow: inset 0 2px 5px rgba(0,0,0,0.28); }
+  /* Ровная заливка вместо градиента: перетекание двух цветов — приём из
+     другого визуального языка, чем металл с фаской, рядом они спорят.
+     Плюс на градиенте белый текст читался по-разному на разных краях. */
+  .btn-primary{
+    background:var(--accent-strong); border-color:transparent; color:#fff; font-weight:700;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -2px 0 rgba(0,0,0,0.22), 0 2px 6px rgba(0,0,0,0.28);
+  }
+  .btn-primary:active{ box-shadow: inset 0 2px 5px rgba(0,0,0,0.35); }
   .btn-danger-outline{border-color:var(--danger); color:var(--danger-on-panel);}
-  .btn-success{background:linear-gradient(135deg, var(--accent-strong), var(--violet-strong)); border:none; color:#fff; font-weight:700;}
+  .btn-success{
+    background:var(--accent-strong); border:none; color:#fff; font-weight:700;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -2px 0 rgba(0,0,0,0.22), 0 2px 6px rgba(0,0,0,0.28);
+  }
   .btn-block{width:100%;}
   .btn-row{display:flex; gap:8px;}
   .btn-row button{flex:1;}
@@ -518,11 +547,16 @@
   .mission-card.st-rejected{border-left-color:var(--danger);}
   .mission-title{font-size:14px; font-weight:500; margin-bottom:3px; padding-right:70px;}
   .mission-meta{font-size:12px; color:var(--text-muted); font-family:var(--mono);}
-  .status-pill{display:inline-block; font-size:10px; font-family:var(--mono); letter-spacing:0.4px; padding:2px 8px; border-radius:20px; margin-top:8px; text-transform:uppercase;}
+  /* Статусы: тонкая рамка и приглушённая подложка вместо сплошной яркой
+     заливки. Плашка перестала кричать громче названия задания. */
+  .status-pill{
+    display:inline-block; font-size:10px; font-family:var(--mono); letter-spacing:0.4px;
+    padding:3px 9px; border-radius:8px; margin-top:8px; text-transform:uppercase; font-weight:700;
+  }
   .status-open{background:var(--panel-alt); color:var(--text-secondary); border:1px solid var(--border-strong);}
-  .status-review{background:var(--amber); color:#2A1D00;}
-  .status-approved{background:var(--accent); color:#0A1F19;}
-  .status-rejected{background:var(--danger); color:#2A0A05;}
+  .status-review{background:var(--amber-tint); color:var(--amber-ink); border:1px solid var(--amber);}
+  .status-approved{background:var(--accent-tint); color:var(--accent-ink); border:1px solid var(--accent);}
+  .status-rejected{background:var(--danger-tint); color:var(--danger-ink); border:1px solid var(--danger);}
 
   /* Reward card */
   .reward-card{display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:13px 14px; margin-bottom:10px; box-shadow:0 2px 10px rgba(21,36,32,0.05);}
@@ -1375,37 +1409,37 @@ const THEMES = {
             amber:"#FFC24D", amberTint:"rgba(255,194,77,0.16)", amberInk:"#FFDD9B",
             danger:"#FF5F6D", dangerTint:"rgba(255,95,109,0.16)", dangerInk:"#FF9AA3",
             violet:"#5B7FE8", violetTint:"rgba(91,127,232,0.18)",
-            accentH:189, accentS:92, accentL:55, swatch:"#1FD3E8" },
+            accentH:189, accentS:62, accentL:52, swatch:"#2FB6C6" },
   neon:   { label:"неон",     mode:"dark",  bg:"#0B0F17", panel:"#141C26", panelAlt:"#1B2530", border:"#293542", borderStrong:"#3B4A59",
             text:"#EAF2FF", textSecondary:"#93A8BD", textMuted:"#5C6E80",
             amber:"#FFD23F", amberTint:"rgba(255,210,63,0.18)", amberInk:"#FFE68A",
             danger:"#FF4D4D", dangerTint:"rgba(255,77,77,0.18)", dangerInk:"#FF8A8A",
             violet:"#7C4DFF", violetTint:"rgba(124,77,255,0.18)",
-            accentH:322, accentS:100, accentL:60, swatch:"#FF2E9A" },
+            accentH:322, accentS:72, accentL:58, swatch:"#FF2E9A" },
   tropics:{ label:"тропики",  mode:"light", bg:"#FFF8EC", panel:"#FFFFFF", panelAlt:"#FFF1DC", border:"#F3E2C2", borderStrong:"#E6CC9C",
             text:"#3A2A16", textSecondary:"#8A6B45", textMuted:"#B79A6E",
             amber:"#FFB020", amberTint:"#FFEFD0", amberInk:"#8A5800",
             danger:"#FF3B5C", dangerTint:"#FFD9E1", dangerInk:"#B0102E",
             violet:"#8C6BF2", violetTint:"#EDE5FF",
-            accentH:12, accentS:100, accentL:63, swatch:"#FF6B4A" },
+            accentH:12, accentS:76, accentL:58, swatch:"#FF6B4A" },
   ocean:  { label:"океан",    mode:"light", bg:"#EAF6FF", panel:"#FFFFFF", panelAlt:"#DCEFFB", border:"#C7E3F5", borderStrong:"#A9D2EE",
             text:"#0E2A3D", textSecondary:"#4E7999", textMuted:"#84A9C2",
             amber:"#FFA724", amberTint:"#FFEBD0", amberInk:"#8A5800",
             danger:"#FF5A6E", dangerTint:"#FFDEE2", dangerInk:"#B01430",
             violet:"#7C6BFF", violetTint:"#E6E2FF",
-            accentH:213, accentS:100, accentL:58, swatch:"#2E8BFF" },
+            accentH:213, accentS:74, accentL:56, swatch:"#2E8BFF" },
   sunset: { label:"закат",    mode:"dark",  bg:"#2B1240", panel:"#3A1B57", panelAlt:"#451F68", border:"#5A2C82", borderStrong:"#713AA3",
             text:"#FDEBFF", textSecondary:"#D6A9F0", textMuted:"#A97FC7",
             amber:"#FFC24B", amberTint:"rgba(255,194,75,0.2)", amberInk:"#FFDA8F",
             danger:"#FF6B6B", dangerTint:"rgba(255,107,107,0.2)", dangerInk:"#FF9E9E",
             violet:"#B98CFF", violetTint:"rgba(185,140,255,0.2)",
-            accentH:333, accentS:100, accentL:68, swatch:"#FF5FA2" },
+            accentH:333, accentS:72, accentL:62, swatch:"#FF5FA2" },
   jungle: { label:"джунгли",  mode:"dark",  bg:"#0F1F17", panel:"#16281F", panelAlt:"#1D3327", border:"#2A4536", borderStrong:"#3B5C48",
             text:"#EAFBF0", textSecondary:"#8FC1A4", textMuted:"#5D8F71",
             amber:"#FFD23F", amberTint:"rgba(255,210,63,0.18)", amberInk:"#FFE68A",
             danger:"#FF5C5C", dangerTint:"rgba(255,92,92,0.18)", dangerInk:"#FF9494",
             violet:"#8C6BFF", violetTint:"rgba(140,107,255,0.18)",
-            accentH:152, accentS:100, accentL:57, swatch:"#39FF9E" }
+            accentH:152, accentS:70, accentL:52, swatch:"#39FF9E" }
 };
 const THEME_KEY = "hq_theme_v1";
 let themeState = { theme:"neon", hue:0 };
@@ -1569,8 +1603,14 @@ async function loadTheme(){
       // рассыпалась в hsl(NaN,...). Принимаем только осмысленное.
       if(parsed && typeof parsed === 'object'){
         const theme = THEMES[parsed.theme] ? parsed.theme : 'neon';
-        const hue = Number(parsed.hue);
-        themeState = { theme, hue: isFinite(hue) ? hue : 0 };
+        let hue = Number(parsed.hue);
+        if(!isFinite(hue)) hue = 0;
+        // Раньше ползунок крутился на все 360 градусов. Уже сохранённые
+        // крайние значения приводим к новому диапазону, иначе тема осталась
+        // бы кислотной, а ползунок показывал бы край шкалы.
+        if(hue > 180) hue -= 360;
+        hue = Math.max(-60, Math.min(60, hue));
+        themeState = { theme, hue };
       }
     }
   }catch(e){}
@@ -3109,7 +3149,7 @@ function renderMissions(){
   const sorted = [...list].sort((a,b)=> (a.status==='open'?0:1) - (b.status==='open'?0:1));
   return `
     <h1>миссии</h1>
-    <div style="display:inline-flex; align-items:center; gap:6px; background:var(--accent-tint); color:var(--accent-ink); font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.4px; padding:5px 10px; border-radius:20px; margin-bottom:8px;">⬆️ ЗДЕСЬ ОЧКИ НАЧИСЛЯЮТСЯ</div>
+    <div class="section-hint hint-accent">ЗДЕСЬ ОЧКИ НАЧИСЛЯЮТСЯ</div>
     <p class="lead">${director?'все задания агентства':'ваши текущие задания. отметьте выполненным — директор проверит и начислит очки'}</p>
     ${director ? `<button class="btn-primary btn-block" style="margin-bottom:4px" id="newMissionBtn">+ новая миссия</button>
       <p class="btn-caption">создайте задание для агента — оно появится и в его списке миссий, и в общем чате</p>` : ''}
@@ -3157,7 +3197,7 @@ function renderRewards(){
   const myPendingRequests = (state.rewardRequests||[]).filter(rq=>rq.status==='pending' && rq.agentId===m.id);
   return `
     <h1>награды</h1>
-    <div style="display:inline-flex; align-items:center; gap:6px; background:var(--amber-tint); color:var(--amber-ink); font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.4px; padding:5px 10px; border-radius:20px; margin-bottom:8px;">⬇️ ЗДЕСЬ ОЧКИ ТРАТЯТСЯ</div>
+    <div class="section-hint hint-amber">ЗДЕСЬ ОЧКИ ТРАТЯТСЯ</div>
     ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
       <button class="btn-primary btn-block" style="margin-bottom:4px" id="newRewardBtn">+ вписать награду</button>
       <p class="btn-caption">например: "поход в кино" за 50 очков. награда остаётся в списке и после получения — её можно выдавать снова</p>`
@@ -4197,7 +4237,8 @@ function renderModal(){
           }).join('')}
         </div>
         <label class="field-label">свой оттенок</label>
-        <input type="range" id="hueSlider" min="0" max="360" value="${themeState.hue}"/>
+        <input type="range" id="hueSlider" min="-60" max="60" step="5" value="${themeState.hue}"/>
+        <p class="btn-caption" style="margin-top:6px;">сдвигает оттенок темы в соседние тона. полный круг убран намеренно: он уводил цвета в кислотные, на которых текст плохо читается${themeState.hue ? `. <span id="hueReset" style="color:var(--accent-ink); text-decoration:underline;">вернуть исходный</span>` : ''}</p>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">готово</button>
         </div>
@@ -4864,6 +4905,10 @@ function attachEvents(){
         applyTheme();
       };
       hueSlider.onchange = async ()=>{ await saveTheme(); };
+    }
+    const hueReset = document.getElementById('hueReset');
+    if(hueReset){
+      hueReset.onclick = async ()=>{ themeState.hue = 0; applyTheme(); await saveTheme(); render(); };
     }
 
     document.querySelectorAll('[data-request-chat]').forEach(el=>{
