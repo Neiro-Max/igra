@@ -182,8 +182,11 @@
   /* Селектор :has() поддерживается не везде, поэтому кнопка всегда без
      подложки, а прежний вид возвращает сам запасной значок — он и рисует
      плитку, если картинка не загрузилась. */
+  /* Высота пластины задана явно, а не через квадрат от ширины кнопки:
+     у агента вкладок три вместо четырёх, кнопки шире, и квадратная пластина
+     раздувала панель почти вдвое — она наползала на содержимое экрана. */
   #nav .nav-plate{
-    width:100%; height:auto; aspect-ratio:1/1; object-fit:contain; display:block;
+    width:auto; height:56px; max-width:100%; object-fit:contain; display:block; margin:0 auto;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
     transition: filter .18s, transform .18s;
   }
@@ -192,7 +195,7 @@
      и на тёмных участках тёмный текст не дотягивал до нормы читаемости.
      Плашка выравнивает фон под текстом независимо от рисунка иконки. */
   #nav .nav-label{
-    position:absolute; left:50%; bottom:9%; transform:translateX(-50%);
+    position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
     font-size:9px; font-family:var(--mono); font-weight:700; letter-spacing:0;
     color:#16222B; background:rgba(240,244,246,0.88); border-radius:6px;
     padding:1px 3px; max-width:100%; white-space:nowrap;
@@ -1617,23 +1620,52 @@ async function loadTheme(){
       // JSON.parse может вернуть что угодно — число, строку, null. Раньше это
       // уходило в applyTheme как есть, hue становился NaN, и вся палитра
       // рассыпалась в hsl(NaN,...). Принимаем только осмысленное.
-      if(parsed && typeof parsed === 'object'){
-        const theme = THEMES[parsed.theme] ? parsed.theme : 'neon';
-        let hue = Number(parsed.hue);
-        if(!isFinite(hue)) hue = 0;
-        // Раньше ползунок крутился на все 360 градусов. Уже сохранённые
-        // крайние значения приводим к новому диапазону, иначе тема осталась
-        // бы кислотной, а ползунок показывал бы край шкалы.
-        if(hue > 180) hue -= 360;
-        hue = Math.max(-60, Math.min(60, hue));
-        themeState = { theme, hue };
-      }
+      const norm = normalizeThemeState(parsed);
+      if(norm) themeState = norm;
     }
   }catch(e){}
   applyTheme();
 }
-function saveTheme(){
+/* Оформление принадлежит агенту, а не устройству. Раньше настройка лежала
+   только в памяти браузера: на одном телефоне и директор, и ребёнок видели
+   одну и ту же тему, а сменить её каждому под себя было невозможно.
+   Теперь она хранится в профиле — значит своя у каждого и переезжает с
+   человеком на другое устройство. Запись в браузере остаётся как запасная,
+   чтобы до входа в штаб приложение открывалось не в случайной теме. */
+function normalizeThemeState(raw){
+  if(!raw || typeof raw !== 'object') return null;
+  const theme = THEMES[raw.theme] ? raw.theme : 'neon';
+  let hue = Number(raw.hue);
+  if(!isFinite(hue)) hue = 0;
+  if(hue > 180) hue -= 360;
+  hue = Math.max(-60, Math.min(60, hue));
+  return { theme, hue };
+}
+
+// Подхватывает оформление вошедшего агента. Вызывается после входа и после
+// смены личности — иначе на общем телефоне тема осталась бы от предыдущего.
+function applyAgentTheme(){
+  const m = me();
+  if(!m) return;
+  const saved = normalizeThemeState(m.theme);
+  if(saved){
+    themeState = saved;
+    applyTheme();
+    try{ localStorage.setItem(THEME_KEY, JSON.stringify(themeState)); }catch(e){}
+  }else{
+    // У профиля темы ещё нет — закрепляем за ним текущую.
+    saveTheme();
+  }
+}
+
+async function saveTheme(){
   try{ localStorage.setItem(THEME_KEY, JSON.stringify(themeState)); }catch(e){}
+  const m = me();
+  if(!m) return;
+  const next = { theme: themeState.theme, hue: themeState.hue };
+  if(m.theme && m.theme.theme === next.theme && Number(m.theme.hue) === next.hue) return;
+  m.theme = next;
+  await saveState();
 }
 
 function uid(){ return Math.random().toString(36).slice(2,10); }
@@ -2133,6 +2165,9 @@ function loadMyId(){
 function saveMyId(id){
   myAgentId = id;
   try{ localStorage.setItem(myIdKey(), id); }catch(e){}
+  // На общем телефоне после смены личности оформление должно смениться
+  // вместе с ней, иначе ребёнок увидит тему родителя и наоборот.
+  applyAgentTheme();
 }
 
 let onlineIds = new Set();
@@ -2500,7 +2535,7 @@ function render(){
   lastRenderedView = view;
   if(viewChanged) rememberView();
   root.innerHTML = `
-    <div class="screen${viewChanged?' screen-enter':''}" style="padding-bottom:${view==='chat'?'18px':'112px'}; ${view==='chat'?'display:flex;flex-direction:column;min-height:100vh;':''}">
+    <div class="screen${viewChanged?' screen-enter':''}" style="padding-bottom:${view==='chat'?'18px':'128px'}; ${view==='chat'?'display:flex;flex-direction:column;min-height:100vh;':''}">
       ${body}
     </div>
     ${view!=='chat' ? renderNav() : ''}
@@ -2803,6 +2838,7 @@ async function startRoomSession(){
   // Возвращаемся на тот экран, где человек был в прошлый раз — тогда
   // случайный вылет перестаёт стоить ему пути обратно.
   restoreView();
+  applyAgentTheme();
   setupBackGesture();
   render();
   checkMissionNotifications(); // первый вызов только запоминает текущий список
