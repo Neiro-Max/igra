@@ -120,32 +120,50 @@
   body[data-theme="shq"] .brand-title{ color:#CFEBFF; font-size:15px; }
 
   /* Кнопки быстрого доступа под шапкой — тоже «металл» */
+  /* Подложка под иконками убрана: сами иконки уже объёмные, и рамка вокруг
+     них читалась как вторая рамка внутри первой. Остаётся только свечение. */
   body[data-theme="shq"] .quick-tile{
-    background: linear-gradient(180deg, #26405A 0%, #16283A 100%);
-    border:1px solid #37597A; border-radius:14px; padding:8px 4px;
-    box-shadow: inset 0 1px 0 rgba(180,225,245,0.2), 0 3px 8px rgba(0,0,0,0.45);
+    background:none; border:none; padding:4px 2px;
   }
+  body[data-theme="shq"] .quick-img-wrap{ width:58px; height:58px; }
   body[data-theme="shq"] .quick-tile .quick-glyph{
     filter: drop-shadow(0 0 6px var(--glow));
   }
 
   /* Карточки: лёгкий градиент вместо плоской заливки. Светлота держится
      рядом со значением --panel, чтобы не сбить проверенный контраст текста. */
+  /* Шлифованный металл: тонкие вертикальные полоски дают фактуру, светлая
+     линия по верхней кромке — блик, тень снизу — объём. Всё тёмное, чтобы
+     светлый текст на карточках остался читаемым. */
   body[data-theme="shq"] .card{
-    background: linear-gradient(180deg, #17293A 0%, #101E2B 100%);
-    border-color:#2A455C;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.022) 0px, rgba(255,255,255,0.022) 1px, transparent 1px, transparent 3px),
+      linear-gradient(180deg, #1B3044 0%, #142435 45%, #0D1B27 100%);
+    border-color:#31536E;
+    box-shadow: inset 0 1px 0 rgba(190,230,250,0.22), inset 0 -1px 0 rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.5);
   }
   body[data-theme="shq"] .modal-sheet{
-    background: linear-gradient(180deg, #16283A 0%, #0E1C29 100%);
-    border-color:#2A455C;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 3px),
+      linear-gradient(180deg, #1A2E41 0%, #101E2B 100%);
+    border-color:#31536E;
+    box-shadow: inset 0 1px 0 rgba(190,230,250,0.2), 0 -6px 30px rgba(0,0,0,0.6);
   }
   body[data-theme="shq"] .choice-card{
     background: linear-gradient(180deg, #182B3C 0%, #11202D 100%);
     border-color:#2A455C;
   }
-  body[data-theme="shq"] h2{ color:#8FD8EA; }
+  body[data-theme="shq"] h2{
+    color:var(--accent); text-shadow:0 0 14px var(--glow); letter-spacing:1px;
+  }
   body[data-theme="shq"] .stat-value{ color:#DFF6FF; text-shadow:0 0 14px var(--glow); }
-  body[data-theme="shq"] .goal-fill{ box-shadow:0 0 12px var(--glow); }
+  body[data-theme="shq"] .goal-track{
+    background:#0A1622; border-color:#31536E;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+  }
+  body[data-theme="shq"] .goal-fill{
+    box-shadow:0 0 16px var(--glow), inset 0 1px 0 rgba(255,255,255,0.5);
+  }
   body[data-theme="shq"] .marquee-wrap{
     box-shadow: inset 0 1px 0 rgba(180,225,245,0.18), 0 4px 14px rgba(0,0,0,0.45);
   }
