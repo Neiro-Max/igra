@@ -227,7 +227,12 @@
   }
   /* Если картинки не загрузились — возвращаемся к прежнему виду кнопки */
   #nav .nav-plate.img-missing ~ .nav-label{
+    /* Без плитки подпись становится обычной строкой под значком.
+       Раньше сбрасывались только положение и цвет, а светлый фон
+       с тенью оставались — подпись выглядела наклейкой сбоку. */
     position:static; color:inherit; text-shadow:none;
+    background:transparent; box-shadow:none;
+    padding:0; margin-top:3px; display:block;
   }
   #nav .nav-plate.img-missing + .nav-fallback{ display:block; }
   .quick-img-wrap{ width:52px; height:52px; display:flex; align-items:center; justify-content:center; }
