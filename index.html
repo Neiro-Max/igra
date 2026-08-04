@@ -646,6 +646,93 @@
   .id-card-label{font-family:var(--mono); font-size:10px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase;}
 
   ::-webkit-scrollbar{width:0; height:0;}
+
+  /* ==========================================================
+     МЕТАЛЛИЧЕСКИЕ ПЛАШКИ — экран наград.
+     Весь блок висит на body[data-mode="dark"]: метку проставляет
+     applyTheme, она уже была сделана для фона с картой. В светлых
+     темах (тропики, океан) светлая сталь на светлом фоне сливается,
+     поэтому там не включаем.
+     Блок дописан НИЖЕ всех остальных стилей и ничего не переписывает.
+     Чтобы откатить оформление — удалить блок целиком.
+     ========================================================== */
+
+  /* --- большая плашка «доступно очков» --- */
+  body[data-mode="dark"] .metal-panel{
+    background-image:url(panel-metal.png);
+    background-size:100% 100%;
+    background-repeat:no-repeat;
+    background-color:transparent;
+    border-color:transparent;
+    box-shadow:none;
+    /* поля увеличены: у картинки толстая рамка, при родных 14px
+       текст ложился прямо на неё */
+    padding:22px 26px 24px 20px;
+  }
+  body[data-mode="dark"] .metal-panel .stat-label,
+  body[data-mode="dark"] .metal-panel .goal-label,
+  body[data-mode="dark"] .metal-panel .goal-left{ color:#4A6373; }
+  body[data-mode="dark"] .metal-panel .stat-value,
+  body[data-mode="dark"] .metal-panel .goal-title{ color:#16242F; }
+  body[data-mode="dark"] .metal-panel .goal-nums{ color:#0D6577; }
+  body[data-mode="dark"] .metal-panel .goal-track{
+    background:rgba(20,40,55,0.35); border-color:rgba(20,40,55,0.45);
+  }
+  body[data-mode="dark"] .metal-panel .goal-box{ border-top-color:rgba(20,40,55,0.25); }
+
+  /* --- карточка награды --- */
+  body[data-mode="dark"] .reward-card{
+    background-image:url(card-metal.png);
+    background-size:100% 100%;
+    background-repeat:no-repeat;
+    background-color:transparent;
+    border-color:transparent;
+    box-shadow:none;
+    /* сверху у картинки язычок-ручка, родных 13px мало — текст лез под него */
+    padding:19px 15px 14px;
+  }
+  body[data-mode="dark"] .reward-card .reward-title{ color:#16242F; }
+  body[data-mode="dark"] .reward-card .reward-cost{ color:#7A5A18; }
+  body[data-mode="dark"] .reward-card .reward-icon{
+    background-image:url(tile-metal.png);
+    background-size:100% 100%;
+    background-repeat:no-repeat;
+    background-color:transparent;
+    color:#2B4658;
+  }
+
+  /* --- кнопки внутри плашки и карточек ---
+     Картинка режется на девять кусков: углы и фаска остаются как есть,
+     тянется только ровная середина. Поэтому надписи разной длины
+     получают одинаковую рамку.
+     border-width подобран под реальную высоту кнопок в приложении:
+     обычная ≈41px, мелкая .btn-ghost-sm ≈28px. Одним значением
+     не обойтись — на мелкой рамка съедает текст. */
+  body[data-mode="dark"] .metal-panel button,
+  body[data-mode="dark"] .reward-card button{
+    background:transparent;
+    color:#16242F;
+    border-style:solid;
+    border-width:9px 14px;
+    border-image-source:url(btn-metal.png);
+    border-image-slice:48 62 fill;
+    border-image-repeat:stretch;
+    border-radius:0;
+    box-shadow:none;
+    padding:4px 6px;
+  }
+  body[data-mode="dark"] .metal-panel button:active,
+  body[data-mode="dark"] .reward-card button:active{
+    border-image-source:url(btn-metal-on.png);
+    border-image-slice:50 62 fill;
+    color:#E8F4FF;
+  }
+  body[data-mode="dark"] .metal-panel .btn-ghost-sm,
+  body[data-mode="dark"] .reward-card .btn-ghost-sm{
+    border-width:6px 11px;
+    padding:2px 4px;
+  }
+
 </style>
 </head>
 <body>
@@ -3288,7 +3375,7 @@ function renderRewards(){
     ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
       <button class="btn-primary btn-block" style="margin-bottom:4px" id="newRewardBtn">+ вписать награду</button>
       <p class="btn-caption">например: "поход в кино" за 50 очков. награда остаётся в списке и после получения — её можно выдавать снова</p>`
-      : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value" data-count-to="${pts}">${pts}</div>
+      : `<div class="card metal-panel"><div class="stat-label">доступно очков</div><div class="stat-value" data-count-to="${pts}">${pts}</div>
           ${pending>0?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">ещё ${pending} очков в запросах, ждут подтверждения</div>`:''}
           ${goalProgressHtml(m.id)}
           <button class="btn-ghost-sm" style="margin-top:12px;" data-show-history="${m.id}">📜 история начислений и трат</button>
