@@ -658,8 +658,8 @@
      ========================================================== */
 
   /* --- большая плашка «доступно очков» --- */
-  body[data-mode="dark"] .metal-panel{
-    background-image:url(panel-metal.png);
+  body.metal-ok[data-mode="dark"] .metal-panel{
+    background-image:url(m-panel.png);
     background-size:100% 100%;
     background-repeat:no-repeat;
     background-color:transparent;
@@ -669,20 +669,20 @@
        текст ложился прямо на неё */
     padding:22px 26px 24px 20px;
   }
-  body[data-mode="dark"] .metal-panel .stat-label,
-  body[data-mode="dark"] .metal-panel .goal-label,
-  body[data-mode="dark"] .metal-panel .goal-left{ color:#4A6373; }
-  body[data-mode="dark"] .metal-panel .stat-value,
-  body[data-mode="dark"] .metal-panel .goal-title{ color:#16242F; }
-  body[data-mode="dark"] .metal-panel .goal-nums{ color:#0D6577; }
-  body[data-mode="dark"] .metal-panel .goal-track{
+  body.metal-ok[data-mode="dark"] .metal-panel .stat-label,
+  body.metal-ok[data-mode="dark"] .metal-panel .goal-label,
+  body.metal-ok[data-mode="dark"] .metal-panel .goal-left{ color:#4A6373; }
+  body.metal-ok[data-mode="dark"] .metal-panel .stat-value,
+  body.metal-ok[data-mode="dark"] .metal-panel .goal-title{ color:#16242F; }
+  body.metal-ok[data-mode="dark"] .metal-panel .goal-nums{ color:#0D6577; }
+  body.metal-ok[data-mode="dark"] .metal-panel .goal-track{
     background:rgba(20,40,55,0.35); border-color:rgba(20,40,55,0.45);
   }
-  body[data-mode="dark"] .metal-panel .goal-box{ border-top-color:rgba(20,40,55,0.25); }
+  body.metal-ok[data-mode="dark"] .metal-panel .goal-box{ border-top-color:rgba(20,40,55,0.25); }
 
   /* --- карточка награды --- */
-  body[data-mode="dark"] .reward-card{
-    background-image:url(card-metal.png);
+  body.metal-ok[data-mode="dark"] .reward-card{
+    background-image:url(m-card.png);
     background-size:100% 100%;
     background-repeat:no-repeat;
     background-color:transparent;
@@ -691,10 +691,10 @@
     /* сверху у картинки язычок-ручка, родных 13px мало — текст лез под него */
     padding:19px 15px 14px;
   }
-  body[data-mode="dark"] .reward-card .reward-title{ color:#16242F; }
-  body[data-mode="dark"] .reward-card .reward-cost{ color:#7A5A18; }
-  body[data-mode="dark"] .reward-card .reward-icon{
-    background-image:url(tile-metal.png);
+  body.metal-ok[data-mode="dark"] .reward-card .reward-title{ color:#16242F; }
+  body.metal-ok[data-mode="dark"] .reward-card .reward-cost{ color:#7A5A18; }
+  body.metal-ok[data-mode="dark"] .reward-card .reward-icon{
+    background-image:url(m-tile.png);
     background-size:100% 100%;
     background-repeat:no-repeat;
     background-color:transparent;
@@ -708,27 +708,27 @@
      border-width подобран под реальную высоту кнопок в приложении:
      обычная ≈41px, мелкая .btn-ghost-sm ≈28px. Одним значением
      не обойтись — на мелкой рамка съедает текст. */
-  body[data-mode="dark"] .metal-panel button,
-  body[data-mode="dark"] .reward-card button{
+  body.metal-ok[data-mode="dark"] .metal-panel button,
+  body.metal-ok[data-mode="dark"] .reward-card button{
     background:transparent;
     color:#16242F;
     border-style:solid;
     border-width:9px 14px;
-    border-image-source:url(btn-metal.png);
+    border-image-source:url(m-btn.png);
     border-image-slice:48 62 fill;
     border-image-repeat:stretch;
     border-radius:0;
     box-shadow:none;
     padding:4px 6px;
   }
-  body[data-mode="dark"] .metal-panel button:active,
-  body[data-mode="dark"] .reward-card button:active{
-    border-image-source:url(btn-metal-on.png);
+  body.metal-ok[data-mode="dark"] .metal-panel button:active,
+  body.metal-ok[data-mode="dark"] .reward-card button:active{
+    border-image-source:url(m-btn-on.png);
     border-image-slice:50 62 fill;
     color:#E8F4FF;
   }
-  body[data-mode="dark"] .metal-panel .btn-ghost-sm,
-  body[data-mode="dark"] .reward-card .btn-ghost-sm{
+  body.metal-ok[data-mode="dark"] .metal-panel .btn-ghost-sm,
+  body.metal-ok[data-mode="dark"] .reward-card .btn-ghost-sm{
     border-width:6px 11px;
     padding:2px 4px;
   }
@@ -5689,6 +5689,27 @@ function scrollChatBottom(){
   window.addEventListener('beforeunload', ()=>{
     if(myAgentId && roomId){ try{ roomRef('presence/'+myAgentId).remove(); }catch(e){} }
   });
+})();
+</script>
+
+<script>
+// Металл включается ТОЛЬКО после того, как браузер загрузил картинку.
+// Раньше стили применялись сразу: если PNG не находился (не залит,
+// опечатка в имени, старый кэш) — карточки оставались без фона,
+// а текст был уже перекрашен в тёмный, и экран выглядел пустым.
+// Теперь при любой осечке оформление просто не включится,
+// и приложение останется таким, каким было.
+(function(){
+  try{
+    var probe = new Image();
+    probe.onload = function(){
+      if(document.body) document.body.classList.add('metal-ok');
+    };
+    probe.onerror = function(){
+      // намеренно тихо: обычный вид — приемлемый исход
+    };
+    probe.src = 'm-card.png';
+  }catch(e){}
 })();
 </script>
 </body>
