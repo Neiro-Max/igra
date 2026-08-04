@@ -174,13 +174,44 @@
      активную выделяет код: подсветка, рамка и лёгкая заливка акцентом.
      Так хватает четырёх картинок вместо восьми, и цвет подсветки следует
      за выбранной темой и ползунком оттенка. */
-  #nav .nav-img{ width:26px; height:26px; object-fit:contain; display:block; }
-  #nav .nav-img.img-missing{ display:none; }
-  #nav .nav-fallback{ display:none; font-style:normal; }
-  #nav .nav-img.img-missing + .nav-fallback{ display:inline; }
-  body[data-theme="shq"] #nav button.active .nav-img{
-    filter: drop-shadow(0 0 7px var(--glow));
+  /* Пластина занимает кнопку целиком, подпись лежит поверх неё. Своя
+     подложка у кнопки при этом убирается: серебряная пластина сама и есть
+     кнопка, и вторая рамка вокруг читалась как рамка в рамке.
+     Активную вкладку выделяет свечение по контуру, а не заливка поверх
+     металла — заливка убивала фактуру. */
+  /* Селектор :has() поддерживается не везде, поэтому кнопка всегда без
+     подложки, а прежний вид возвращает сам запасной значок — он и рисует
+     плитку, если картинка не загрузилась. */
+  #nav .nav-plate{
+    width:100%; height:auto; aspect-ratio:1/1; object-fit:contain; display:block;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
+    transition: filter .18s, transform .18s;
   }
+  #nav .nav-plate.img-missing{ display:none; }
+  /* Подпись лежит на светлой плашке: металл на пластине неоднородный,
+     и на тёмных участках тёмный текст не дотягивал до нормы читаемости.
+     Плашка выравнивает фон под текстом независимо от рисунка иконки. */
+  #nav .nav-label{
+    position:absolute; left:50%; bottom:11%; transform:translateX(-50%);
+    font-size:9.5px; font-family:var(--mono); font-weight:700; letter-spacing:0.2px;
+    color:#16222B; background:rgba(240,244,246,0.86); border-radius:7px;
+    padding:1px 6px; max-width:92%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    box-shadow:0 1px 2px rgba(0,0,0,0.25); pointer-events:none;
+  }
+  #nav button.active .nav-plate{
+    filter: drop-shadow(0 0 10px var(--glow)) drop-shadow(0 0 3px var(--glow)) brightness(1.06);
+    transform: translateY(-2px) scale(1.04);
+  }
+  #nav .nav-fallback{
+    display:none; font-style:normal; font-size:17px; width:100%;
+    padding:10px 0 4px; border-radius:18px;
+    background:var(--panel-alt); border:1px solid var(--border);
+  }
+  /* Если картинки не загрузились — возвращаемся к прежнему виду кнопки */
+  #nav .nav-plate.img-missing ~ .nav-label{
+    position:static; color:inherit; text-shadow:none;
+  }
+  #nav .nav-plate.img-missing + .nav-fallback{ display:block; }
   .quick-img-wrap{ width:52px; height:52px; display:flex; align-items:center; justify-content:center; }
   .quick-img{ width:100%; height:100%; object-fit:contain; display:block; }
   .quick-img.img-missing{ display:none; }
@@ -440,11 +471,13 @@
   }
   #nav-grille span{ width:3px; height:9px; border-radius:2px; background:var(--border-strong); }
   #nav button{
-    flex:1; background:var(--panel-alt); border:1px solid var(--border); border-radius:18px; display:flex; flex-direction:column; align-items:center; gap:3px;
-    padding:8px 2px; color:var(--text-secondary); font-size:10px; font-family:var(--mono); letter-spacing:0.3px; position:relative;
-    transition:background .15s, color .15s, box-shadow .15s;
+    flex:1; background:none; border:none; border-radius:18px; display:flex; flex-direction:column; align-items:center; gap:0;
+    padding:0; color:var(--text-secondary); font-size:10px; font-family:var(--mono); letter-spacing:0.3px; position:relative;
+    transition:color .15s;
   }
-  #nav button.active{
+  /* Подсветка активной вкладки живёт на самой пластине (см. .nav-plate),
+     а этот вариант срабатывает, только когда картинок нет. */
+  #nav button.active .nav-fallback{
     background:linear-gradient(135deg, var(--accent), var(--violet)); color:#fff; border-color:transparent;
     box-shadow:0 0 12px 0 var(--glow);
   }
@@ -2416,13 +2449,13 @@ function renderNav(){
   return `
   <div id="nav">
     <div id="nav-grille" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    <button data-nav="home" class="${view==='home'?'active':''}"><span class="nav-icon"><img class="nav-img" src="nav-home.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◈</i></span>штаб</button>
-    <button data-nav="missions" class="${view==='missions'?'active':''}"><span class="nav-icon"><img class="nav-img" src="nav-missions.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✦</i></span>миссии</button>
+    <button data-nav="home" class="${view==='home'?'active':''}"><img class="nav-plate" src="nav-home.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◈</i><span class="nav-label">штаб</span></button>
+    <button data-nav="missions" class="${view==='missions'?'active':''}"><img class="nav-plate" src="nav-missions.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✦</i><span class="nav-label">миссии</span></button>
     ${director ? `<button data-nav="review" class="${view==='review'?'active':''}" style="position:relative">
-        <span class="nav-icon"><img class="nav-img" src="nav-review.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✓</i></span>проверка
+        <img class="nav-plate" src="nav-review.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✓</i><span class="nav-label">проверка</span>
         ${pendingReview>0?`<span class="badge pulse-badge">${pendingReview}</span>`:''}
       </button>` : ''}
-    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><span class="nav-icon"><img class="nav-img" src="nav-rewards.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◆</i></span>награды</button>
+    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><img class="nav-plate" src="nav-rewards.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◆</i><span class="nav-label">награды</span></button>
   </div>`;
 }
 
