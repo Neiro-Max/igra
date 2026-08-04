@@ -228,6 +228,22 @@
   /* Подсказки разделов — тот же материал, что у статусов: тонкая рамка,
      приглушённая подложка, прямоугольная форма вместо пилюли. Эмодзи-стрелки
      убраны: рядом с металлическими иконками они смотрелись из другой оперы. */
+  /* Оттенки выбираются плитками, а не ползунком: стандартный range —
+     элемент веб-формы, он выбивался из общего материала, и тянуть его
+     пальцем на телефоне неудобно. Форма и фаска те же, что у кнопок. */
+  .tone-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tone-chip{
+    width:40px; height:40px; padding:0; border-radius:12px; flex-shrink:0;
+    border:1px solid rgba(0,0,0,0.35);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -2px 0 rgba(0,0,0,0.2), 0 2px 5px rgba(0,0,0,0.3);
+    transition: transform .15s, box-shadow .15s;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .tone-base{ color:rgba(255,255,255,0.9); font-size:22px; line-height:1; text-shadow:0 1px 2px rgba(0,0,0,0.5); }
+  .tone-chip.tone-on{
+    transform: translateY(-3px);
+    box-shadow: 0 0 0 2px #fff, inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 10px rgba(0,0,0,0.45);
+  }
   .section-hint{
     display:inline-block; font-family:var(--mono); font-size:11px; font-weight:700;
     letter-spacing:0.5px; padding:4px 10px; border-radius:8px; margin-bottom:10px;
@@ -4225,7 +4241,7 @@ function renderModal(){
     return `<div class="modal-overlay" id="modalOverlay">
       <div class="modal-sheet">
         <div class="modal-title">цвет штаба</div>
-        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите тему оформления или настройте свой оттенок ползунком</p>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">выберите тему оформления, а затем — оттенок внутри неё</p>
         <div style="display:flex; gap:12px; flex-wrap:wrap;">
           ${Object.keys(THEMES).map(key=>{
             const t = THEMES[key];
@@ -4236,9 +4252,23 @@ function renderModal(){
             </div>`;
           }).join('')}
         </div>
-        <label class="field-label">свой оттенок</label>
-        <input type="range" id="hueSlider" min="-60" max="60" step="5" value="${themeState.hue}"/>
-        <p class="btn-caption" style="margin-top:6px;">сдвигает оттенок темы в соседние тона. полный круг убран намеренно: он уводил цвета в кислотные, на которых текст плохо читается${themeState.hue ? `. <span id="hueReset" style="color:var(--accent-ink); text-decoration:underline;">вернуть исходный</span>` : ''}</p>
+        <label class="field-label">оттенок</label>
+        <div class="tone-row">
+          ${(()=>{
+            const t = THEMES[themeState.theme] || THEMES.neon;
+            // Готовые сдвиги вместо ползунка: нажал — сразу видно результат,
+            // промахнуться мимо нужного оттенка невозможно.
+            const offsets = [-60,-40,-20,0,20,40,60];
+            return offsets.map(off=>{
+              const h = ((t.accentH + off) % 360 + 360) % 360;
+              const col = `hsl(${h},${t.accentS}%,${t.accentL}%)`;
+              const active = Number(themeState.hue) === off;
+              return `<button class="tone-chip ${active?'tone-on':''}" data-pick-tone="${off}"
+                        style="background:${col};" aria-label="оттенок ${off}">${off===0?'<span class="tone-base">·</span>':''}</button>`;
+            }).join('');
+          })()}
+        </div>
+        <p class="btn-caption" style="margin-top:8px;">точкой отмечен исходный оттенок темы. крайние значения намеренно ограничены — дальше цвета становятся кислотными, и текст на них плохо читается</p>
         <div class="btn-row" style="margin-top:18px">
           <button id="modalCancel">готово</button>
         </div>
@@ -4898,18 +4928,14 @@ function attachEvents(){
         render();
       };
     });
-    const hueSlider = document.getElementById('hueSlider');
-    if(hueSlider){
-      hueSlider.oninput = ()=>{
-        themeState.hue = parseInt(hueSlider.value)||0;
+    document.querySelectorAll('[data-pick-tone]').forEach(el=>{
+      el.onclick = async ()=>{
+        themeState.hue = parseInt(el.getAttribute('data-pick-tone')) || 0;
         applyTheme();
+        await saveTheme();
+        render();
       };
-      hueSlider.onchange = async ()=>{ await saveTheme(); };
-    }
-    const hueReset = document.getElementById('hueReset');
-    if(hueReset){
-      hueReset.onclick = async ()=>{ themeState.hue = 0; applyTheme(); await saveTheme(); render(); };
-    }
+    });
 
     document.querySelectorAll('[data-request-chat]').forEach(el=>{
       el.onclick = async ()=>{
