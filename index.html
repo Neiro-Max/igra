@@ -621,8 +621,14 @@
   .msg-action-btn{ background:none; border:none; padding:0 2px; font-size:11px; color:var(--text-muted); cursor:pointer; }
   .msg-action-btn:active{ color:var(--accent); }
   .msg-sender{font-size:11px; font-weight:700; font-family:var(--mono); color:var(--text-secondary); margin-bottom:2px;}
-  .chat-input-row{display:flex; gap:8px; align-items:center; border-top:1px solid var(--border); padding-top:12px; margin-top:auto;}
-  .chat-input-row input{flex:1;}
+  /* Поле ввода было однострочным: длинное сообщение уезжало вбок, и человек
+     не видел, что печатает. Теперь оно растёт вниз по мере набора — до пяти
+     строк, дальше появляется прокрутка внутри самого поля. */
+  .chat-input-row{display:flex; gap:8px; align-items:flex-end; border-top:1px solid var(--border); padding-top:12px; margin-top:auto;}
+  .chat-input-row textarea{
+    flex:1; resize:none; overflow-y:auto; line-height:1.4;
+    min-height:44px; max-height:120px; padding:11px 12px;
+  }
   .send-btn{width:40px; height:40px; padding:0; border-radius:50%; background:linear-gradient(135deg, var(--accent), var(--violet)); border:none; color:#fff; font-size:16px; flex-shrink:0; box-shadow:0 0 10px 0 var(--glow);}
 
   .chat-header{display:flex; align-items:center; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--border); margin-bottom:12px;}
@@ -3431,7 +3437,7 @@ function renderChat(){
         }).join('')}
     </div>
     <div class="chat-input-row">
-      <input id="chatInput" placeholder="сообщение..." autocomplete="off"/>
+      <textarea id="chatInput" placeholder="сообщение..." rows="1" autocomplete="off"></textarea>
       <button class="send-btn" id="sendMsgBtn">→</button>
     </div>
   `;
@@ -4928,6 +4934,7 @@ function attachEvents(){
       const now = new Date();
       const time = now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
       chatDraft = '';
+      input.style.height = 'auto';   // поле возвращается к одной строке
       pushMessage(activeChannelId, { from:myAgentId, text, time, type:'text' });
       render();
       setTimeout(scrollChatBottom,0);
@@ -4937,13 +4944,25 @@ function attachEvents(){
     // Перерисовка пересоздаёт поле ввода, а входящее сообщение теперь может
     // прилететь в любой момент — без этого набранный текст просто исчезал
     // на полуслове. Держим черновик снаружи DOM и возвращаем каретку на место.
+    // Высота подгоняется под содержимое: сначала сбрасываем, потом
+    // выставляем по фактической высоте текста, но не выше потолка из стилей.
+    const autoGrow = ()=>{
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+    };
     if(chatDraft){
       inputEl.value = chatDraft;
       const pos = inputEl.value.length;
       try{ inputEl.setSelectionRange(pos, pos); }catch(e){}
     }
-    inputEl.oninput = ()=>{ chatDraft = inputEl.value; };
-    inputEl.onkeydown = (e)=>{ if(e.key==='Enter') doSend(); };
+    autoGrow();
+    inputEl.oninput = ()=>{ chatDraft = inputEl.value; autoGrow(); };
+    // На телефоне Enter должен переносить строку — отправка идёт кнопкой.
+    // На компьютере привычнее наоборот: Enter отправляет, Shift+Enter переносит.
+    const touchDevice = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    inputEl.onkeydown = (e)=>{
+      if(e.key === 'Enter' && !e.shiftKey && !touchDevice){ e.preventDefault(); doSend(); }
+    };
     if(document.activeElement !== inputEl) inputEl.focus();
   }
   document.querySelectorAll('[data-edit-msg]').forEach(el=>{
