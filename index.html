@@ -192,14 +192,16 @@
      и на тёмных участках тёмный текст не дотягивал до нормы читаемости.
      Плашка выравнивает фон под текстом независимо от рисунка иконки. */
   #nav .nav-label{
-    position:absolute; left:50%; bottom:11%; transform:translateX(-50%);
-    font-size:9.5px; font-family:var(--mono); font-weight:700; letter-spacing:0.2px;
-    color:#16222B; background:rgba(240,244,246,0.86); border-radius:7px;
-    padding:1px 6px; max-width:92%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    position:absolute; left:50%; bottom:9%; transform:translateX(-50%);
+    font-size:9px; font-family:var(--mono); font-weight:700; letter-spacing:0;
+    color:#16222B; background:rgba(240,244,246,0.88); border-radius:6px;
+    padding:1px 3px; max-width:100%; white-space:nowrap;
     box-shadow:0 1px 2px rgba(0,0,0,0.25); pointer-events:none;
   }
+  /* Подсветка нейтральная, белая: цветное свечение от акцента давало
+     ядовитый ореол вокруг серебра и портило металл. */
   #nav button.active .nav-plate{
-    filter: drop-shadow(0 0 10px var(--glow)) drop-shadow(0 0 3px var(--glow)) brightness(1.06);
+    filter: drop-shadow(0 0 9px rgba(255,255,255,0.85)) drop-shadow(0 0 3px rgba(255,255,255,0.6)) brightness(1.08);
     transform: translateY(-2px) scale(1.04);
   }
   #nav .nav-fallback{
@@ -221,6 +223,15 @@
     width:46px; height:46px; border-radius:14px; background:var(--panel-alt); color:var(--text);
     font-size:18px; box-shadow:0 0 0 2px var(--border-strong); }
   .quick-img-wrap > .quick-img.img-missing + .quick-fallback{ display:flex; }
+  /* Корзина стоит в одной строке со статусом, а не отдельной кнопкой снизу:
+     так карточка короче, а действие не выглядит основным. */
+  .mission-status-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .mission-del{
+    flex-shrink:0; width:34px; height:34px; padding:0; font-size:15px; line-height:1;
+    border:1px solid var(--border); border-radius:10px; background:var(--panel-alt);
+    color:var(--text-secondary); opacity:0.75;
+  }
+  .mission-del:active{ opacity:1; border-color:var(--danger); }
   .rules-heading{ font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.6px;
     text-transform:uppercase; color:var(--accent-ink); background:var(--accent-tint);
     border-radius:8px; padding:6px 10px; margin:16px 0 10px; }
@@ -454,7 +465,7 @@
   #nav{
     position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
     width:calc(100% - 32px); max-width:428px;
-    background:var(--panel); border:1px solid var(--border); border-radius:30px; display:flex; gap:6px; padding:10px 10px;
+    background:var(--panel); border:1px solid var(--border); border-radius:30px; display:flex; gap:3px; padding:8px 6px;
     z-index:10; box-shadow:0 8px 24px rgba(21,36,32,0.14);
   }
   #nav::before{
@@ -3069,7 +3080,10 @@ function missionCardHtml(msn, showDelete){
     <div class="mission-tab">${msn.points} О</div>
     <div class="mission-title">${escapeHtml(msn.title)}</div>
     <div class="mission-meta">${escapeHtml(missionAssigneeNames(msn))} ${msn.deadline?'· срок: '+escapeHtml(msn.deadline):''}</div>
-    <div><span class="status-pill ${statusClass}">${statusLabel}</span></div>
+    <div class="mission-status-row">
+      <span class="status-pill ${statusClass}">${statusLabel}</span>
+      ${showDelete ? `<button class="mission-del" data-delete-mission="${msn.id}" aria-label="удалить миссию" title="удалить миссию">🗑️</button>` : ''}
+    </div>
     ${msn.status==='rejected' && msn.rejectReason ? `<div style="font-size:12px;color:var(--danger);margin-top:6px;">причина: ${escapeHtml(msn.rejectReason)}</div>` : ''}
     ${hasProposal ? `
       <div style="background:var(--amber-tint); border-radius:8px; padding:10px; margin-top:10px;">
@@ -3085,7 +3099,6 @@ function missionCardHtml(msn, showDelete){
     ${canPropose ? `<button class="btn-block" style="margin-top:8px; padding:13px 0; font-size:15px; font-weight:600; border-color:var(--amber); color:var(--amber-ink);" data-negotiate-mission="${msn.id}">💬 торг</button>` : ''}
     ${canRetry ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-retry-mission="${msn.id}">исправить и отправить снова</button>` : ''}
     ${canPlayBonus ? `<button class="btn-primary btn-block glow-btn" style="margin-top:10px" data-play-safe="${msn.id}">🔓 взломать сейф — бонусные очки!</button>` : ''}
-    ${showDelete ? `<button class="btn-ghost-sm" style="margin-top:10px; border-color:var(--danger); color:var(--danger);" data-delete-mission="${msn.id}" aria-label="удалить миссию">🗑️</button>` : ''}
   </div>`;
 }
 
