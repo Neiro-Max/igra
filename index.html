@@ -661,6 +661,11 @@
     border-radius:16px;
   }
   #nav .nav-plate.img-missing ~ .nav-label{
+    /* Подпись была прижата к низу пластины через absolute + сдвиг
+       на половину своей ширины. Положение я сбросил сразу, а сдвиг —
+       нет, и он продолжал тянуть подпись влево: «штаб» уезжал за край.
+       Сбрасываем всё, что осталось от прежней раскладки. */
+    transform:none; left:auto; right:auto; bottom:auto;
     width:100%; text-align:center;
     font-size:11px; line-height:1.2;
     overflow:hidden; text-overflow:ellipsis;
