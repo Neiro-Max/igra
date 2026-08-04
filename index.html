@@ -186,7 +186,7 @@
      у агента вкладок три вместо четырёх, кнопки шире, и квадратная пластина
      раздувала панель почти вдвое — она наползала на содержимое экрана. */
   #nav .nav-plate{
-    width:auto; height:64px; max-width:100%; object-fit:contain; display:block; margin:0 auto;
+    width:64px; max-width:100%; height:auto; aspect-ratio:1/1; object-fit:contain; display:block; margin:0 auto;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
     transition: filter .18s, transform .18s;
   }
@@ -511,8 +511,12 @@
 
   /* Bottom nav */
   #nav{
-    position:fixed; bottom:calc(14px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
-    width:auto; max-width:calc(100% - 24px);
+    /* Центрируем полями, а не сдвигом от середины: при left:50% браузер
+       считает доступной только правую половину экрана, и панель шириной
+       по содержимому вылезала за край — у директора обрезалась вкладка. */
+    position:fixed; bottom:calc(14px + env(safe-area-inset-bottom));
+    left:0; right:0; margin-left:auto; margin-right:auto;
+    width:fit-content; max-width:calc(100% - 24px);
     background:var(--panel); border:1px solid var(--border); border-radius:30px; display:flex; gap:3px; padding:8px 6px;
     z-index:10; box-shadow:0 8px 24px rgba(21,36,32,0.14);
   }
@@ -530,7 +534,7 @@
   }
   #nav-grille span{ width:3px; height:9px; border-radius:2px; background:var(--border-strong); }
   #nav button{
-    flex:0 0 auto; background:none; border:none; border-radius:18px; display:flex; flex-direction:column; align-items:center; gap:0;
+    flex:0 1 auto; min-width:0; background:none; border:none; border-radius:18px; display:flex; flex-direction:column; align-items:center; gap:0;
     padding:0; color:var(--text-secondary); font-size:10px; font-family:var(--mono); letter-spacing:0.3px; position:relative;
     transition:color .15s;
   }
