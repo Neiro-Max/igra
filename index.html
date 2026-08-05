@@ -227,12 +227,7 @@
   }
   /* Если картинки не загрузились — возвращаемся к прежнему виду кнопки */
   #nav .nav-plate.img-missing ~ .nav-label{
-    /* Без плитки подпись становится обычной строкой под значком.
-       Раньше сбрасывались только положение и цвет, а светлый фон
-       с тенью оставались — подпись выглядела наклейкой сбоку. */
     position:static; color:inherit; text-shadow:none;
-    background:transparent; box-shadow:none;
-    padding:0; margin-top:3px; display:block;
   }
   #nav .nav-plate.img-missing + .nav-fallback{ display:block; }
   .quick-img-wrap{ width:52px; height:52px; display:flex; align-items:center; justify-content:center; }
@@ -652,23 +647,90 @@
 
   ::-webkit-scrollbar{width:0; height:0;}
 
-  /* --- Нижняя панель без плиток: значок был мелким, потому что задумывался
-     как запасной вариант «на случай если картинка не пришла», а стал
-     основным. Увеличиваем и выравниваем подпись по центру кнопки. --- */
-  #nav .nav-fallback{
-    font-size:23px;
-    padding:14px 0 12px;
-    border-radius:16px;
+  /* ==========================================================
+     МЕТАЛЛИЧЕСКИЕ ПЛАШКИ — экран наград.
+     Весь блок висит на body[data-mode="dark"]: метку проставляет
+     applyTheme, она уже была сделана для фона с картой. В светлых
+     темах (тропики, океан) светлая сталь на светлом фоне сливается,
+     поэтому там не включаем.
+     Блок дописан НИЖЕ всех остальных стилей и ничего не переписывает.
+     Чтобы откатить оформление — удалить блок целиком.
+     ========================================================== */
+
+  /* --- большая плашка «доступно очков» --- */
+  body[data-mode="dark"] .metal-panel{
+    background-image:url(panel-metal.png);
+    background-size:100% 100%;
+    background-repeat:no-repeat;
+    background-color:transparent;
+    border-color:transparent;
+    box-shadow:none;
+    /* поля увеличены: у картинки толстая рамка, при родных 14px
+       текст ложился прямо на неё */
+    padding:22px 26px 24px 20px;
   }
-  #nav .nav-plate.img-missing ~ .nav-label{
-    /* Подпись была прижата к низу пластины через absolute + сдвиг
-       на половину своей ширины. Положение я сбросил сразу, а сдвиг —
-       нет, и он продолжал тянуть подпись влево: «штаб» уезжал за край.
-       Сбрасываем всё, что осталось от прежней раскладки. */
-    transform:none; left:auto; right:auto; bottom:auto;
-    width:100%; text-align:center;
-    font-size:11px; line-height:1.2;
-    overflow:hidden; text-overflow:ellipsis;
+  body[data-mode="dark"] .metal-panel .stat-label,
+  body[data-mode="dark"] .metal-panel .goal-label,
+  body[data-mode="dark"] .metal-panel .goal-left{ color:#4A6373; }
+  body[data-mode="dark"] .metal-panel .stat-value,
+  body[data-mode="dark"] .metal-panel .goal-title{ color:#16242F; }
+  body[data-mode="dark"] .metal-panel .goal-nums{ color:#0D6577; }
+  body[data-mode="dark"] .metal-panel .goal-track{
+    background:rgba(20,40,55,0.35); border-color:rgba(20,40,55,0.45);
+  }
+  body[data-mode="dark"] .metal-panel .goal-box{ border-top-color:rgba(20,40,55,0.25); }
+
+  /* --- карточка награды --- */
+  body[data-mode="dark"] .reward-card{
+    background-image:url(card-metal.png);
+    background-size:100% 100%;
+    background-repeat:no-repeat;
+    background-color:transparent;
+    border-color:transparent;
+    box-shadow:none;
+    /* сверху у картинки язычок-ручка, родных 13px мало — текст лез под него */
+    padding:19px 15px 14px;
+  }
+  body[data-mode="dark"] .reward-card .reward-title{ color:#16242F; }
+  body[data-mode="dark"] .reward-card .reward-cost{ color:#7A5A18; }
+  body[data-mode="dark"] .reward-card .reward-icon{
+    background-image:url(tile-metal.png);
+    background-size:100% 100%;
+    background-repeat:no-repeat;
+    background-color:transparent;
+    color:#2B4658;
+  }
+
+  /* --- кнопки внутри плашки и карточек ---
+     Картинка режется на девять кусков: углы и фаска остаются как есть,
+     тянется только ровная середина. Поэтому надписи разной длины
+     получают одинаковую рамку.
+     border-width подобран под реальную высоту кнопок в приложении:
+     обычная ≈41px, мелкая .btn-ghost-sm ≈28px. Одним значением
+     не обойтись — на мелкой рамка съедает текст. */
+  body[data-mode="dark"] .metal-panel button,
+  body[data-mode="dark"] .reward-card button{
+    background:transparent;
+    color:#16242F;
+    border-style:solid;
+    border-width:9px 14px;
+    border-image-source:url(btn-metal.png);
+    border-image-slice:48 62 fill;
+    border-image-repeat:stretch;
+    border-radius:0;
+    box-shadow:none;
+    padding:4px 6px;
+  }
+  body[data-mode="dark"] .metal-panel button:active,
+  body[data-mode="dark"] .reward-card button:active{
+    border-image-source:url(btn-metal-on.png);
+    border-image-slice:50 62 fill;
+    color:#E8F4FF;
+  }
+  body[data-mode="dark"] .metal-panel .btn-ghost-sm,
+  body[data-mode="dark"] .reward-card .btn-ghost-sm{
+    border-width:6px 11px;
+    padding:2px 4px;
   }
 
 </style>
@@ -1742,6 +1804,46 @@ async function hashPin(pin){
 }
 function isValidPin(pin){ return /^\d{4}$/.test(String(pin||'')); }
 
+/* Отпечаток PIN с индивидуальной добавкой (id агента).
+   Старая версия считала отпечаток одинаково для всех, поэтому у людей
+   с одинаковым PIN совпадал и след в базе — по выгрузке было видно,
+   у кого код такой же. Здесь в подмешивается id, следы становятся разными.
+   Старые отпечатки не ломаются: verifyPin проверяет оба формата и при
+   удачном входе по старому тихо пересчитывает его в новый. */
+async function hashPinFor(agent, pin){
+  const salt = (agent && agent.id) ? String(agent.id) : 'noid';
+  const enc = new TextEncoder().encode('shq_pin_v2_' + salt + '_' + String(pin));
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* Проверка PIN. Возвращает true/false и сама переводит старый отпечаток
+   на новый формат — человек ничего не замечает, вводит свой обычный код. */
+async function verifyPin(agent, pin){
+  if(!agent || !agent.pinHash) return false;
+  const fresh = await hashPinFor(agent, pin);
+  if(fresh === agent.pinHash) return true;
+  const legacy = await hashPin(pin);
+  if(legacy === agent.pinHash){
+    agent.pinHash = fresh;
+    try{ await saveState(); }catch(e){}
+    return true;
+  }
+  return false;
+}
+
+/* Кодовое слово — запасной вход для того, кому PIN сбросить некому
+   (директор-основатель: кнопки сброса для него намеренно нет).
+   Регистр и лишние пробелы не важны. */
+function normWord(w){ return String(w||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function isValidWord(w){ return normWord(w).length >= 4; }
+async function hashWordFor(agent, word){
+  const salt = (agent && agent.id) ? String(agent.id) : 'noid';
+  const enc = new TextEncoder().encode('shq_word_v1_' + salt + '_' + normWord(word));
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 // Пытается атомарно "занять" место директора для agentId.
 // Возвращает true только если слот был свободен или уже принадлежал этому агенту.
 async function claimDirectorSlot(agentId){
@@ -2310,8 +2412,7 @@ async function verifyDeleteAgentGuard(agentId){
   if(agent.pinHash){
     const pin = (document.getElementById('deleteAgentPin')||{}).value?.trim();
     if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'введите PIN'; return false; }
-    const hash = await hashPin(pin);
-    if(hash !== agent.pinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return false; }
+    if(!(await verifyPin(agent, pin))){ if(errEl) errEl.textContent = 'неверный PIN'; return false; }
     return true;
   }
   const typed = (document.getElementById('deleteAgentNameConfirm')||{}).value?.trim();
@@ -2611,13 +2712,13 @@ function renderNav(){
   return `
   <div id="nav">
     <div id="nav-grille" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    <button data-nav="home" class="${view==='home'?'active':''}"><img class="nav-plate img-missing" src="nav-home.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◈</i><span class="nav-label">штаб</span></button>
-    <button data-nav="missions" class="${view==='missions'?'active':''}"><img class="nav-plate img-missing" src="nav-missions.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✦</i><span class="nav-label">миссии</span></button>
+    <button data-nav="home" class="${view==='home'?'active':''}"><img class="nav-plate" src="nav-home.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◈</i><span class="nav-label">штаб</span></button>
+    <button data-nav="missions" class="${view==='missions'?'active':''}"><img class="nav-plate" src="nav-missions.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✦</i><span class="nav-label">миссии</span></button>
     ${director ? `<button data-nav="review" class="${view==='review'?'active':''}" style="position:relative">
-        <img class="nav-plate img-missing" src="nav-review.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✓</i><span class="nav-label">проверка</span>
+        <img class="nav-plate" src="nav-review.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✓</i><span class="nav-label">проверка</span>
         ${pendingReview>0?`<span class="badge pulse-badge">${pendingReview}</span>`:''}
       </button>` : ''}
-    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><img class="nav-plate img-missing" src="nav-rewards.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◆</i><span class="nav-label">награды</span></button>
+    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><img class="nav-plate" src="nav-rewards.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◆</i><span class="nav-label">награды</span></button>
   </div>`;
 }
 
@@ -3313,7 +3414,7 @@ function renderRewards(){
     ${director ? `<p class="lead">впишите награды, которые агенты смогут получить за накопленные очки</p>
       <button class="btn-primary btn-block" style="margin-bottom:4px" id="newRewardBtn">+ вписать награду</button>
       <p class="btn-caption">например: "поход в кино" за 50 очков. награда остаётся в списке и после получения — её можно выдавать снова</p>`
-      : `<div class="card"><div class="stat-label">доступно очков</div><div class="stat-value" data-count-to="${pts}">${pts}</div>
+      : `<div class="card metal-panel"><div class="stat-label">доступно очков</div><div class="stat-value" data-count-to="${pts}">${pts}</div>
           ${pending>0?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">ещё ${pending} очков в запросах, ждут подтверждения</div>`:''}
           ${goalProgressHtml(m.id)}
           <button class="btn-ghost-sm" style="margin-top:12px;" data-show-history="${m.id}">📜 история начислений и трат</button>
@@ -3518,7 +3619,11 @@ function renderModal(){
         ${needsSetup ? `<label class="field-label">повторите PIN</label>
         <input id="dirPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>` : ''}
         <div id="dirPinError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
-        ${!needsSetup ? `<p class="btn-caption" style="margin-top:2px;">забыли PIN? попросите директора сбросить его в списке участников штаба.</p>` : ''}
+        ${!needsSetup ? (agent && agent.recoveryHash
+            ? `<p class="btn-caption" style="margin-top:2px;">забыли PIN? <a href="#" id="recoverPinLink" data-agent-id="${modal.agentId}" style="color:var(--accent-ink);">восстановить по кодовому слову</a></p>`
+            : (agent && (agent.role === 'director' || agent.id === state.founderId)
+              ? `<p class="btn-caption" style="margin-top:2px;">забыли PIN? кодовое слово для этого профиля не задано, а сбросить код директору некому — доступ останется только с устройства, где вы уже вошли.</p>`
+              : `<p class="btn-caption" style="margin-top:2px;">забыли PIN? попросите директора сбросить его в списке участников штаба.</p>`)) : ''}
         <div class="btn-row" style="margin-top:4px">
           <button id="modalCancel">отмена</button>
           <button class="btn-primary" id="modalDirPinSubmit" data-agent-id="${modal.agentId}" data-needs-setup="${needsSetup?'1':'0'}">${needsSetup?'сохранить и войти':'войти →'}</button>
@@ -4070,6 +4175,60 @@ function renderModal(){
       </div>
     </div>`;
   }
+  if(modal.type === 'changePin'){
+    const m = me();
+    const hasWord = !!(m && m.recoveryHash);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">сменить PIN</div>
+        <label class="field-label">текущий PIN</label>
+        <input id="cpOld" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        <label class="field-label">новый PIN (4 цифры)</label>
+        <input id="cpNew" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        <label class="field-label">повторите новый PIN</label>
+        <input id="cpNew2" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:18px;">кодовое слово</div>
+        <p class="btn-caption" style="margin-top:4px;">
+          ${hasWord
+            ? 'кодовое слово уже задано. можете оставить поле пустым или вписать новое, чтобы заменить.'
+            : 'запасной ключ на случай, если забудете PIN. директору он необходим: сбросить его код больше некому.'}
+        </p>
+        <label class="field-label">${hasWord ? 'новое кодовое слово (необязательно)' : 'кодовое слово'}</label>
+        <input id="cpWord" type="text" autocomplete="off" placeholder="например: рыжий кот"/>
+
+        <div id="cpError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalChangePinSubmit">сохранить</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if(modal.type === 'recoverPin'){
+    const agent = agentById(modal.agentId);
+    return `<div class="modal-overlay" id="modalOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">восстановить доступ</div>
+        <p style="font-size:14px; color:var(--text-secondary); line-height:1.6;">
+          введите кодовое слово профиля «${escapeHtml(agent?agent.name:'')}» и задайте новый PIN.
+        </p>
+        <label class="field-label">кодовое слово</label>
+        <input id="rcWord" type="text" autocomplete="off" placeholder="кодовое слово"/>
+        <label class="field-label">новый PIN (4 цифры)</label>
+        <input id="rcNew" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        <label class="field-label">повторите новый PIN</label>
+        <input id="rcNew2" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off"/>
+        <div id="rcError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:8px;"></div>
+        <div class="btn-row" style="margin-top:4px">
+          <button id="modalCancel">отмена</button>
+          <button class="btn-primary" id="modalRecoverSubmit" data-agent-id="${modal.agentId}">сохранить и войти →</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   if(modal.type === 'profile'){
     const m = me();
     return `<div class="modal-overlay" id="modalOverlay">
@@ -4098,6 +4257,7 @@ function renderModal(){
         </div>
 
         <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:20px; margin-bottom:2px;">аккаунт</div>
+        <button class="btn-block" style="margin-top:8px" id="modalChangePin">сменить PIN</button>
         <button class="btn-block" style="margin-top:8px" id="modalSwitchAgent">🚪 выйти</button>
         <button class="btn-block" style="margin-top:8px" id="modalSwitchRoom">сменить штаб</button>
         <button class="btn-danger-outline btn-block" style="margin-top:8px" id="modalDeleteSelf">удалить это удостоверение</button>
@@ -4625,7 +4785,7 @@ function attachIdentityEvents(){
         return;
       }
     }
-    newAgent.pinHash = await hashPin(pin);
+    newAgent.pinHash = await hashPinFor(newAgent, pin);
 
     // Первый директор штаба становится его основателем.
     if(newAgent.role === 'director' && !state.founderId) state.founderId = id;
@@ -4648,6 +4808,69 @@ function attachIdentityEvents(){
     render();
   };
 
+  const changePinBtn = document.getElementById('modalChangePin');
+  if(changePinBtn) changePinBtn.onclick = ()=>{ modal = {type:'changePin'}; render(); };
+
+  const recoverLink = document.getElementById('recoverPinLink');
+  if(recoverLink) recoverLink.onclick = (e)=>{
+    e.preventDefault();
+    modal = {type:'recoverPin', agentId: recoverLink.getAttribute('data-agent-id')};
+    render();
+  };
+
+  const changePinSubmit = document.getElementById('modalChangePinSubmit');
+  if(changePinSubmit) changePinSubmit.onclick = async ()=>{
+    const errEl = document.getElementById('cpError');
+    const m = me();
+    if(!m){ modal=null; render(); return; }
+    const oldPin = (document.getElementById('cpOld')||{}).value?.trim();
+    const newPin = (document.getElementById('cpNew')||{}).value?.trim();
+    const newPin2 = (document.getElementById('cpNew2')||{}).value?.trim();
+    const word = (document.getElementById('cpWord')||{}).value || '';
+    const hasWord = !!m.recoveryHash;
+
+    if(!(await verifyPin(m, oldPin))){ if(errEl) errEl.textContent = 'неверный текущий PIN'; return; }
+    if(!isValidPin(newPin)){ if(errEl) errEl.textContent = 'новый PIN — ровно 4 цифры'; return; }
+    if(newPin !== newPin2){ if(errEl) errEl.textContent = 'новый PIN и подтверждение не совпадают'; return; }
+    // Кодовое слово обязательно, если его ещё нет: без него у директора
+    // не остаётся никакого запасного входа.
+    if(!hasWord && !isValidWord(word)){ if(errEl) errEl.textContent = 'кодовое слово — не короче 4 знаков'; return; }
+    if(word.trim() && !isValidWord(word)){ if(errEl) errEl.textContent = 'кодовое слово — не короче 4 знаков'; return; }
+
+    m.pinHash = await hashPinFor(m, newPin);
+    if(word.trim()) m.recoveryHash = await hashWordFor(m, word);
+    await saveState();
+    modal = null; render();
+    showToast('PIN изменён');
+  };
+
+  const recoverSubmit = document.getElementById('modalRecoverSubmit');
+  if(recoverSubmit) recoverSubmit.onclick = async ()=>{
+    const errEl = document.getElementById('rcError');
+    const agentId = recoverSubmit.getAttribute('data-agent-id');
+    const agent = agentById(agentId);
+    if(!agent){ modal=null; render(); return; }
+    const word = (document.getElementById('rcWord')||{}).value || '';
+    const newPin = (document.getElementById('rcNew')||{}).value?.trim();
+    const newPin2 = (document.getElementById('rcNew2')||{}).value?.trim();
+
+    if(!agent.recoveryHash){ if(errEl) errEl.textContent = 'у этого профиля нет кодового слова'; return; }
+    const wordHash = await hashWordFor(agent, word);
+    if(wordHash !== agent.recoveryHash){ if(errEl) errEl.textContent = 'неверное кодовое слово'; return; }
+    if(!isValidPin(newPin)){ if(errEl) errEl.textContent = 'новый PIN — ровно 4 цифры'; return; }
+    if(newPin !== newPin2){ if(errEl) errEl.textContent = 'новый PIN и подтверждение не совпадают'; return; }
+
+    agent.pinHash = await hashPinFor(agent, newPin);
+    delete agent.pinResetPending;
+    await saveState();
+    if(agent.role === 'director') await repairDirectorLock();
+    saveMyId(agentId);
+    await heartbeat();
+    modal = null; view = 'home';
+    render();
+    showToast('доступ восстановлен');
+  };
+
   const dirPinSubmit = document.getElementById('modalDirPinSubmit');
   if(dirPinSubmit) dirPinSubmit.onclick = async ()=>{
     const errEl = document.getElementById('dirPinError');
@@ -4667,7 +4890,7 @@ function attachIdentityEvents(){
       const pinConfirm = document.getElementById('dirPinConfirm').value.trim();
       if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
       if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
-      agent.pinHash = await hashPin(pin);
+      agent.pinHash = await hashPinFor(agent, pin);
       delete agent.pinResetPending;
       await saveState();
       if(agent.role === 'director') await repairDirectorLock();
@@ -4679,8 +4902,7 @@ function attachIdentityEvents(){
     }
 
     if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
-    const hash = await hashPin(pin);
-    if(hash !== agent.pinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
+    if(!(await verifyPin(agent, pin))){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
     saveMyId(agentId);
     await heartbeat();
     modal = null; view = 'home';
@@ -5211,8 +5433,7 @@ function attachEvents(){
       if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
 
       if(meNow.pinHash){
-        const hash = await hashPin(pin);
-        if(hash !== meNow.pinHash){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
+        if(!(await verifyPin(meNow, pin))){ if(errEl) errEl.textContent = 'неверный PIN'; return; }
       }else{
         const confirmPin = (document.getElementById('reclaimPinConfirm')||{}).value?.trim();
         if(pin !== confirmPin){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
@@ -5229,7 +5450,7 @@ function attachEvents(){
       // Если в данных накопилась рассинхронизация, здесь она чинится.
       state.agents.forEach(a=>{ if(a.role === 'director' && a.id !== meNow.id) a.role = 'agent'; });
       meNow.role = 'director';
-      if(!meNow.pinHash) meNow.pinHash = await hashPin(pin);
+      if(!meNow.pinHash) meNow.pinHash = await hashPinFor(meNow, pin);
       await saveState();
       showToast('👑 права директора вернулись к вам');
       modal = null; render();
@@ -5245,8 +5466,7 @@ function attachEvents(){
       if(meNow.pinHash){
         const currentPin = (document.getElementById('transferCurrentPin')||{}).value?.trim();
         if(!isValidPin(currentPin)){ if(errEl) errEl.textContent = 'введите ваш текущий PIN'; return; }
-        const currentHash = await hashPin(currentPin);
-        if(currentHash !== meNow.pinHash){ if(errEl) errEl.textContent = 'неверный текущий PIN'; return; }
+        if(!(await verifyPin(meNow, currentPin))){ if(errEl) errEl.textContent = 'неверный текущий PIN'; return; }
       }
       const newPin = document.getElementById('transferNewPin').value.trim();
       const newPinConfirm = document.getElementById('transferNewPinConfirm').value.trim();
@@ -5266,7 +5486,7 @@ function attachEvents(){
       // через «придумайте PIN» или удалить, вписав имя с экрана. Плюс без
       // своего PIN основатель не смог бы подтвердить возврат прав.
       target.role = 'director';
-      target.pinHash = await hashPin(newPin);
+      target.pinHash = await hashPinFor(target, newPin);
       await saveState();
       showToast(`👑 ${target.name} теперь директор`);
       modal = null; render();
