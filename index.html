@@ -4254,18 +4254,22 @@ function renderModal(){
       <div class="modal-sheet">
         <div class="modal-title">штаб создан</div>
         <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
-          сохраните этот код доступа — он понадобится всем членам семьи, чтобы присоединиться к этому же штабу
+          запомните этот код доступа — он понадобится всем членам семьи, чтобы присоединиться к этому же штабу
         </p>
         <div class="id-card" style="text-align:center; margin-top:0;">
           <div class="id-card-label">код доступа</div>
           <div style="font-family:var(--mono); font-size:32px; font-weight:700; letter-spacing:4px; color:var(--accent-ink); margin-top:8px; user-select:text; -webkit-user-select:text;">${modal.code}</div>
         </div>
-        <div class="btn-row" style="margin-top:14px">
-          <button id="copyRoomCodeBtn" data-code="${modal.code}">скопировать код</button>
-          <button id="shareRoomCodeBtn" data-code="${modal.code}" class="btn-primary">отправить →</button>
-        </div>
-        <div id="copyFeedback" style="text-align:center; font-size:12px; color:var(--accent-ink); height:16px; margin-top:8px;"></div>
-        <button class="btn-block" style="margin-top:8px" id="modalRoomContinue">продолжить →</button>
+        <!-- Кнопок «скопировать» и «отправить» здесь больше нет намеренно.
+             На этом шаге код только зарезервирован, в базе штаба ещё нет —
+             он появляется, когда создан профиль директора. Отправленная
+             отсюда ссылка вела в пустоту: у получателя «штаб не найден».
+             Поделиться можно из профиля, сразу после создания директора. -->
+        <p class="btn-caption" style="text-align:center; margin-top:12px;">
+          сначала создайте профиль директора — после этого код заработает,
+          и отправить его можно будет из профиля
+        </p>
+        <button class="btn-primary btn-block" style="margin-top:10px" id="modalRoomContinue">создать профиль директора →</button>
       </div>
     </div>`;
   }
