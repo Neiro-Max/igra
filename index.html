@@ -3060,6 +3060,11 @@ function renderIdentity(){
     <input id="newAgentPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
     <label class="field-label">повторите PIN</label>
     <input id="newAgentPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="••••"/>
+    <div id="newAgentWordWrap" style="display:none">
+      <label class="field-label">кодовое слово</label>
+      <input id="newAgentWord" type="text" autocomplete="off" placeholder="например: рыжий кот" maxlength="40"/>
+      <p class="btn-caption">запасной ключ директора. если забудете PIN, сбросить его будет некому — кроме как по этому слову. агентам не нужно: им PIN сбрасывает директор.</p>
+    </div>
     <p class="btn-caption">PIN — это ваш личный пароль. он нужен, чтобы никто другой не мог войти под вашим именем, и чтобы вы сами могли вернуться в свой профиль с нового устройства. запомните его — восстановить нельзя, только пересоздать удостоверение.</p>
     <p class="btn-caption">директор создаёт и проверяет задания, видит все каналы. агент выполняет задания и копит очки${state.agents.some(a=>a.role==='director') ? ' — в штабе уже есть директор, роль директора теперь можно только передать через список участников' : ''}</p>
     <div id="createAgentError" style="font-size:12px; color:var(--danger); min-height:16px; margin-bottom:6px;">${identityNotice ? escapeHtml(identityNotice) : ''}</div>
@@ -4699,6 +4704,13 @@ function attachIdentityEvents(){
     const pinConfirm = document.getElementById('newAgentPinConfirm').value.trim();
     if(!isValidPin(pin)){ if(errEl) errEl.textContent = 'PIN — ровно 4 цифры'; return; }
     if(pin !== pinConfirm){ if(errEl) errEl.textContent = 'PIN и подтверждение не совпадают'; return; }
+    // Кодовое слово обязательно только директору: сбросить ему PIN больше некому,
+    // и без слова забытый код означает потерю штаба насовсем.
+    const wordRaw = (document.getElementById('newAgentWord')||{}).value || '';
+    if(role === 'director' && !isValidWord(wordRaw)){
+      if(errEl) errEl.textContent = 'кодовое слово — не короче 4 знаков';
+      return;
+    }
 
     if(role === 'director'){
       if(state.agents.some(a=>a.role==='director')){
@@ -4722,6 +4734,7 @@ function attachIdentityEvents(){
       }
     }
     newAgent.pinHash = await hashPinFor(newAgent, pin);
+    if(role === 'director' && isValidWord(wordRaw)) newAgent.recoveryHash = await hashWordFor(newAgent, wordRaw);
 
     // Первый директор штаба становится его основателем.
     if(newAgent.role === 'director' && !state.founderId) state.founderId = id;
@@ -4773,6 +4786,16 @@ function attachIdentityEvents(){
     modal = null; view = 'home';
     render();
   };
+
+  // Поле кодового слова показываем только директору: агенту оно не нужно,
+  // ему PIN сбрасывает директор, а лишний обязательный шаг только мешает.
+  const roleSelect = document.getElementById('newAgentRole');
+  const wordWrap = document.getElementById('newAgentWordWrap');
+  if(roleSelect && wordWrap){
+    const syncWord = ()=>{ wordWrap.style.display = (roleSelect.value === 'director') ? '' : 'none'; };
+    roleSelect.onchange = syncWord;
+    syncWord();
+  }
 
   const dirPinSubmit = document.getElementById('modalDirPinSubmit');
   if(dirPinSubmit) dirPinSubmit.onclick = async ()=>{
