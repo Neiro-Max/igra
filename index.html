@@ -4325,7 +4325,8 @@ function renderModal(){
               <input type="checkbox" class="group-member-cb" value="${a.id}" style="width:auto;"/> ${escapeHtml(a.name)}
             </label>
           `).join('')}
-        <button class="btn-primary btn-block" style="margin-top:16px" id="createGroupBtn">создать группу</button>
+        <div id="groupFormError" style="font-size:12px; color:var(--danger); min-height:16px; margin-top:10px;"></div>
+        <button class="btn-primary btn-block" style="margin-top:4px" id="createGroupBtn">создать группу</button>
 
         <div class="btn-row" style="margin-top:14px">
           <button id="modalCancel">${modalBackLabel()}</button>
@@ -5210,10 +5211,14 @@ function attachEvents(){
     });
     const createGroupBtn = document.getElementById('createGroupBtn');
     if(createGroupBtn) createGroupBtn.onclick = async ()=>{
+      // Раньше кнопка при незаполненной форме молча ничего не делала —
+      // человек решал, что сломалось приложение, а не что он забыл поле.
+      const errEl = document.getElementById('groupFormError');
+      if(errEl) errEl.textContent = '';
       const name = document.getElementById('groupName').value.trim();
-      if(!name) return;
+      if(!name){ if(errEl) errEl.textContent = 'впишите название группы'; return; }
       const memberIds = Array.from(document.querySelectorAll('.group-member-cb:checked')).map(cb=>cb.value);
-      if(memberIds.length===0) return;
+      if(memberIds.length===0){ if(errEl) errEl.textContent = 'отметьте хотя бы одного участника'; return; }
       await createGroupChannel(name, memberIds);
       modal = null; render();
     };
