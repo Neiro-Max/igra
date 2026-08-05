@@ -3,7 +3,7 @@
 // всегда старается показать самую свежую версию, но не остаётся совсем
 // пустым экраном, если в моменте нет связи.
 
-const CACHE_NAME = 'neiro-max-shq-v10';
+const CACHE_NAME = 'neiro-max-shq-v11';
 // Иконки перечислены по обоим возможным путям — в подпапке и в корне.
 // Установка не атомарна (см. ниже), поэтому лишние промахи безвредны:
 // закэшируется то, что реально есть.
@@ -18,7 +18,14 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   './icon-maskable-192.png',
-  './icon-maskable-512.png'
+  './icon-maskable-512.png',
+  // Металлические плашки экрана наград: без них в офлайне
+  // карточки остаются без фона и выглядят сломанными.
+  './panel-metal.png',
+  './card-metal.png',
+  './tile-metal.png',
+  './btn-metal.png',
+  './btn-metal-on.png'
 ];
 
 self.addEventListener('install', (event) => {
