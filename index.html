@@ -1461,6 +1461,7 @@ let view = "loading";
 let activeChannelId = null;
 let modal = null;
 let identityNotice = null; // одноразовое сообщение на экране "кто вы?" (переживает render(), в отличие от текста в DOM)
+let showDoneMissions = false; // свёрнутый список подтверждённых миссий; живёт до перезагрузки, в базу не пишется
 
 const SEAL_COLORS = ["#12C88E","#FFA724","#FF5A4E","#5B8DEF","#F2569C","#8C6BF2"];
 
@@ -3286,15 +3287,26 @@ function renderMissions(){
   const m = me();
   const director = m.role==='director';
   const list = director ? state.missions : state.missions.filter(x=>missionAssignees(x).includes(m.id));
-  const sorted = [...list].sort((a,b)=> (a.status==='open'?0:1) - (b.status==='open'?0:1));
+  // Подтверждённые копятся и заслоняют то, что реально надо делать, — прячем их
+  // под свёртку. Отклонённые остаются на виду: по ним ещё нужно переделать
+  // и отправить снова, спрятать их значит дать про них забыть.
+  const active = list.filter(x=>x.status!=='approved');
+  const done   = list.filter(x=>x.status==='approved');
+  const sorted = [...active].sort((a,b)=> (a.status==='open'?0:1) - (b.status==='open'?0:1));
   return `
     <h1>миссии</h1>
     <div class="section-hint hint-accent">ЗДЕСЬ ОЧКИ НАЧИСЛЯЮТСЯ</div>
     <p class="lead">${director?'все задания агентства':'ваши текущие задания. отметьте выполненным — директор проверит и начислит очки'}</p>
     ${director ? `<button class="btn-primary btn-block" style="margin-bottom:4px" id="newMissionBtn">+ новая миссия</button>
       <p class="btn-caption">создайте задание для агента — оно появится и в его списке миссий, и в общем чате</p>` : ''}
-    ${sorted.length===0 ? `<div class="empty-state">${illoFolder()}<div class="stamp">пусто</div><div>заданий пока нет</div></div>` :
+    ${sorted.length===0 && done.length===0 ? `<div class="empty-state">${illoFolder()}<div class="stamp">пусто</div><div>заданий пока нет</div></div>` :
       sorted.map(msn=>missionCardHtml(msn, director)).join('')}
+    ${sorted.length===0 && done.length>0 ? `<div class="empty-state">${illoFolder()}<div class="stamp">чисто</div><div>активных заданий нет</div></div>` : ''}
+    ${done.length>0 ? `
+      <button class="btn-block" style="margin-top:10px" id="toggleDoneMissions">
+        ${showDoneMissions ? 'скрыть выполненные' : 'выполненные (' + done.length + ')'}
+      </button>
+      ${showDoneMissions ? done.map(msn=>missionCardHtml(msn, director)).join('') : ''}` : ''}
   `;
 }
 
@@ -5058,6 +5070,9 @@ function attachEvents(){
   if(gamesHubBtn) gamesHubBtn.onclick = ()=>{ modal = {type:'gamesHub'}; render(); };
   const newChatBtn = document.querySelector('[data-open-newchat]');
   if(newChatBtn) newChatBtn.onclick = ()=>{ modal = {type:'newChat'}; render(); };
+  const toggleDone = document.getElementById('toggleDoneMissions');
+  if(toggleDone) toggleDone.onclick = ()=>{ showDoneMissions = !showDoneMissions; render(); };
+
   const newMissionBtn = document.getElementById('newMissionBtn');
   if(newMissionBtn) newMissionBtn.onclick = ()=>{ modal={type:'newMission'}; render(); };
   const newRewardBtn = document.getElementById('newRewardBtn');
