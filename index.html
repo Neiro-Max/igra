@@ -1926,7 +1926,7 @@ function normalizeState(val){
   // migrate legacy single-use reward fields (redeemedBy/requestedBy/status on the reward itself) into rewardRequests
   rewards.forEach(r=>{
     if(r.redeemedBy && !rewardRequests.some(rq=>rq.rewardId===r.id && rq.agentId===r.redeemedBy && rq.status==='approved')){
-      rewardRequests.push({ id: uid(), rewardId: r.id, agentId: r.redeemedBy, status:'approved', resolvedAt: r.redeemedAt || Date.now() });
+      rewardRequests.push({ id: uid(), rewardId: r.id, agentId: r.redeemedBy, status:'approved', cost: toNum(r.cost), title: r.title, resolvedAt: r.redeemedAt || Date.now() });
     } else if(r.requestedBy && r.status==='requested' && !rewardRequests.some(rq=>rq.rewardId===r.id && rq.agentId===r.requestedBy && rq.status==='pending')){
       rewardRequests.push({ id: uid(), rewardId: r.id, agentId: r.requestedBy, status:'pending', requestedAt: Date.now() });
     }
@@ -2407,10 +2407,30 @@ function rewardCostById(rewardId){
   const r = state.rewards.find(x=>x.id===rewardId);
   return r ? toNum(r.cost) : 0;
 }
+/* Цена награды запоминается в самой записи о выдаче в момент подтверждения.
+   Раньше баланс каждый раз пересчитывался по текущей цене из каталога, и
+   получалось два неверных случая: награду удалили — списание исчезало и очки
+   сами возвращались ребёнку; цену подняли — задним числом списывалось больше.
+   У записей, сделанных до этой правки, поля cost нет, для них берётся цена из
+   каталога, как раньше. Переход незаметный, ничего пересчитывать не нужно. */
+function requestCost(rq){
+  if(!rq) return 0;
+  if(rq.cost !== undefined && rq.cost !== null) return toNum(rq.cost);
+  return rewardCostById(rq.rewardId);
+}
+/* Название запоминается там же и по той же причине: иначе после удаления
+   награды из каталога в истории у ребёнка остаётся строка «(удалена)»,
+   и непонятно, за что списаны очки. */
+function requestTitle(rq){
+  if(!rq) return '(награда удалена)';
+  if(rq.title) return rq.title;
+  const r = state.rewards.find(x=>x.id===rq.rewardId);
+  return r ? r.title : '(награда удалена)';
+}
 function pendingRequestedCost(agentId){
   return (state.rewardRequests||[])
     .filter(rq => rq.agentId===agentId && rq.status==='pending')
-    .reduce((sum,rq) => sum + rewardCostById(rq.rewardId), 0);
+    .reduce((sum,rq) => sum + requestCost(rq), 0);
 }
 /* Любое число, пришедшее из базы, может оказаться строкой: так бывает после
    ручной правки в консоли Firebase или у старых записей. В JavaScript
@@ -2428,7 +2448,7 @@ function toNum(v){
 
 function availablePoints(agentId){
   const earned = state.missions.filter(m=>missionAssignees(m).includes(agentId) && m.status==="approved").reduce((s,m)=>s+toNum(m.points),0);
-  const spent = (state.rewardRequests||[]).filter(rq=>rq.agentId===agentId && rq.status==='approved').reduce((s,rq)=>s+rewardCostById(rq.rewardId),0);
+  const spent = (state.rewardRequests||[]).filter(rq=>rq.agentId===agentId && rq.status==='approved').reduce((s,rq)=>s+requestCost(rq),0);
   const adjusted = (state.adjustments||[]).filter(a=>a.agentId===agentId).reduce((s,a)=>s+toNum(a.delta),0);
   return Math.round(earned - spent + adjusted);
 }
@@ -2442,8 +2462,7 @@ function pointsHistory(agentId){
   });
   (state.rewardRequests||[]).forEach(rq=>{
     if(rq.status==='approved' && rq.agentId===agentId){
-      const r = state.rewards.find(x=>x.id===rq.rewardId);
-      entries.push({ ts: rq.resolvedAt || 0, delta: -(r?toNum(r.cost):0), label: `награда: ${r?r.title:'(удалена)'}` });
+      entries.push({ ts: rq.resolvedAt || 0, delta: -requestCost(rq), label: `награда: ${requestTitle(rq)}` });
     }
   });
   (state.adjustments||[]).forEach(a=>{
@@ -3449,8 +3468,7 @@ function renderRewards(){
     ${!director ? `<h2>история получения</h2>
       ${(state.rewardRequests||[]).filter(rq=>rq.status==='approved' && rq.agentId===myAgentId).length===0 ? `<div style="font-size:13px;color:var(--text-muted)">пока ничего не получено</div>` :
         (state.rewardRequests||[]).filter(rq=>rq.status==='approved' && rq.agentId===myAgentId).map(rq=>{
-          const reward = state.rewards.find(x=>x.id===rq.rewardId);
-          return `<div class="reward-card" style="opacity:0.6"><div class="reward-icon">✓</div><div style="flex:1"><div class="reward-title">${escapeHtml(reward?reward.title:'(награда удалена)')}</div><div class="reward-cost">получено · ${reward?reward.cost:0} очков</div></div></div>`;
+          return `<div class="reward-card" style="opacity:0.6"><div class="reward-icon">✓</div><div style="flex:1"><div class="reward-title">${escapeHtml(requestTitle(rq))}</div><div class="reward-cost">получено · ${requestCost(rq)} очков</div></div></div>`;
         }).join('')}` : ''}
   `;
 }
@@ -4987,6 +5005,10 @@ function attachEvents(){
       const id = el.getAttribute('data-confirm-reward');
       const rq = (state.rewardRequests||[]).find(x=>x.id===id);
       if(rq){
+        // цена фиксируется здесь: дальше её изменение в каталоге на баланс не влияет
+        rq.cost = rewardCostById(rq.rewardId);
+        const rewardNow = state.rewards.find(x=>x.id===rq.rewardId);
+        if(rewardNow) rq.title = rewardNow.title;
         rq.status = 'approved';
         rq.resolvedAt = Date.now();
         await saveState(); render();
