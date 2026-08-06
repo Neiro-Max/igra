@@ -3133,9 +3133,16 @@ function renderHome(){
       <div class="streak-flame">🔥</div>
       <div style="flex:1; min-width:0;">
         <div class="streak-num">${streak.current} ${streak.current===1?'день':(streak.current%10>=2&&streak.current%10<=4&&(streak.current%100<12||streak.current%100>14)?'дня':'дней')} подряд</div>
-        <div class="streak-sub">${streak.activeToday
-          ? (streak.current===streak.best ? 'это ваш лучший результат — так держать' : `лучшая серия: ${streak.best}`)
-          : 'сегодня ещё нет закрытых миссий — серия под угрозой'}</div>
+        <div class="streak-sub">${!streak.activeToday
+          ? 'сегодня ещё нет закрытых миссий — серия под угрозой'
+          : (streak.current === 1
+              /* В первый день хвалить не за что: серия равна рекорду просто
+                 потому, что другой ещё не было. Вместо похвалы — что делать
+                 дальше, ради этого счётчик и нужен. */
+              ? 'начало положено — закройте задание завтра, и станет два дня подряд'
+              : (streak.current === streak.best
+                  ? 'это ваш лучший результат — так держать'
+                  : `лучшая серия: ${streak.best}`))}</div>
       </div>
     </div>` : ''}` : `
     <div class="stat-row">
