@@ -198,35 +198,17 @@
   /* Высота пластины задана явно, а не через квадрат от ширины кнопки:
      у агента вкладок три вместо четырёх, кнопки шире, и квадратная пластина
      раздувала панель почти вдвое — она наползала на содержимое экрана. */
-  #nav .nav-plate{
-    width:100%; max-width:82px; height:auto; aspect-ratio:1/1; object-fit:contain; display:block; margin:0 auto;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.45));
-    transition: filter .18s, transform .18s;
-  }
-  #nav .nav-plate.img-missing{ display:none; }
   /* Подпись лежит на светлой плашке: металл на пластине неоднородный,
      и на тёмных участках тёмный текст не дотягивал до нормы читаемости.
      Плашка выравнивает фон под текстом независимо от рисунка иконки. */
-  #nav .nav-label{
-    position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
-    font-size:10px; font-family:var(--mono); font-weight:700; letter-spacing:0;
-    color:#16222B; background:rgba(240,244,246,0.88); border-radius:6px;
-    padding:1px 3px; max-width:100%; white-space:nowrap;
-    box-shadow:0 1px 2px rgba(0,0,0,0.25); pointer-events:none;
-  }
   /* Подсветка нейтральная, белая: цветное свечение от акцента давало
      ядовитый ореол вокруг серебра и портило металл. */
-  #nav button.active .nav-plate{
-    filter: drop-shadow(0 0 9px rgba(255,255,255,0.85)) drop-shadow(0 0 3px rgba(255,255,255,0.6)) brightness(1.08);
-    transform: translateY(-2px) scale(1.04);
-  }
   #nav .nav-fallback{
-    display:none; font-style:normal; font-size:17px; width:100%;
+    display:block; font-style:normal; font-size:17px; width:100%;
     padding:10px 0 4px; border-radius:18px;
     background:var(--panel-alt); border:1px solid var(--border);
   }
-  /* Если картинки не загрузились — возвращаемся к прежнему виду кнопки */
-  #nav .nav-plate.img-missing ~ .nav-label{
+  #nav .nav-label{
     /* Без плитки подпись становится обычной строкой под значком.
        Сбрасываем всё, что осталось от прежней раскладки: не только
        положение, но и сдвиг — иначе подпись уезжает влево на половину
@@ -239,7 +221,6 @@
     font-size:11px; line-height:1.2;
     overflow:hidden; text-overflow:ellipsis;
   }
-  #nav .nav-plate.img-missing + .nav-fallback{ display:block; }
   .quick-img-wrap{ width:52px; height:52px; display:flex; align-items:center; justify-content:center; }
   .quick-img{ width:100%; height:100%; object-fit:contain; display:block; }
   .quick-img.img-missing{ display:none; }
@@ -565,8 +546,7 @@
     padding:0; color:var(--text-secondary); font-size:10px; font-family:var(--mono); letter-spacing:0.3px; position:relative;
     transition:color .15s;
   }
-  /* Подсветка активной вкладки живёт на самой пластине (см. .nav-plate),
-     а этот вариант срабатывает, только когда картинок нет. */
+  /* Подсветка активной вкладки. */
   #nav button.active .nav-fallback{
     background:linear-gradient(135deg, var(--accent), var(--violet)); color:#fff; border-color:transparent;
     box-shadow:0 0 12px 0 var(--glow);
@@ -657,8 +637,7 @@
 
   ::-webkit-scrollbar{width:0; height:0;}
 
-  /* Значок нижней панели задумывался как запасной вариант на случай
-     ненайденной картинки, а стал основным — поэтому был мелким. */
+  /* Значок нижней панели — основной и единственный, поэтому крупный. */
   #nav .nav-fallback{
     font-size:23px;
     padding:14px 0 12px;
@@ -2659,13 +2638,13 @@ function renderNav(){
   return `
   <div id="nav">
     <div id="nav-grille" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    <button data-nav="home" class="${view==='home'?'active':''}"><img class="nav-plate img-missing" src="nav-home.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◈</i><span class="nav-label">штаб</span></button>
-    <button data-nav="missions" class="${view==='missions'?'active':''}"><img class="nav-plate img-missing" src="nav-missions.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✦</i><span class="nav-label">миссии</span></button>
+    <button data-nav="home" class="${view==='home'?'active':''}"><i class="nav-fallback">◈</i><span class="nav-label">штаб</span></button>
+    <button data-nav="missions" class="${view==='missions'?'active':''}"><i class="nav-fallback">✦</i><span class="nav-label">миссии</span></button>
     ${director ? `<button data-nav="review" class="${view==='review'?'active':''}" style="position:relative">
-        <img class="nav-plate img-missing" src="nav-review.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">✓</i><span class="nav-label">проверка</span>
+        <i class="nav-fallback">✓</i><span class="nav-label">проверка</span>
         ${pendingReview>0?`<span class="badge pulse-badge">${pendingReview}</span>`:''}
       </button>` : ''}
-    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><img class="nav-plate img-missing" src="nav-rewards.png" alt="" onerror="this.classList.add('img-missing')"/><i class="nav-fallback">◆</i><span class="nav-label">награды</span></button>
+    <button data-nav="rewards" class="${view==='rewards'?'active':''}"><i class="nav-fallback">◆</i><span class="nav-label">награды</span></button>
   </div>`;
 }
 
